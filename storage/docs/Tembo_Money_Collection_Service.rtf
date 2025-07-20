@@ -1,0 +1,319 @@
+
+/////////////////////////////////////MAIN SERVICE - COLLECT FROM MOBILE MONEY//////////////////////////////////
+
+
+Collect from Mobile Money
+Use this endpoint to send a USSD push request to a mobile subscriber to receive payment
+
+Send a USSD Push request
+POST https://sandbox.temboplus.com/tembo/v1/collection
+
+Collect money from a mobile subscriber through a USSD push request
+
+Headers
+Name
+Type
+Description
+x-account-id*
+
+string
+
+Partner account id
+
+x-secret-key*
+
+string
+
+Partner secret key
+
+x-request-id*
+
+string
+
+A unique id identifying this request
+
+Request Body
+Name
+Type
+Description
+msisdn*
+
+string
+
+The MSISDN of the mobile subscriber in the format 255XXX123456 to which the USSD push request should be sent
+
+channel*
+
+string
+
+The MNO to of the mobile subscriber. Supported values are: TZ-TIGO-C2B, TZ-AIRTEL-C2B
+
+amount*
+
+number
+
+The amount to be collected
+
+narration*
+
+string
+
+Narration for this transfer
+
+transactionRef*
+
+string
+
+Your system reference that should be associated with this transaction
+
+transactionDate*
+
+string
+
+The date of the transaction in the format YYYY-MM-DD HH:mm:ss
+
+callbackUrl*
+
+string
+
+The web hook callback URL to be called with the current transaction update
+
+200 Success
+401 Invalid Credentials
+Copy
+// If the request is rejected for any reason, the 'statusCode' will be set to 'PAYMENT_REJECTED.'
+// In the event of an error, the 'statusCode' will be set to 'GENERIC_ERROR.'
+{
+  "statusCode": "PENDING_ACK",
+  "transactionRef": "20f807fe-3ee8-4525-8aff-ccb95de38250",
+  "transactionId": "X50jcLD-U"
+}
+cURL
+Webhook Callback
+Copy
+curl --request POST \
+  --url https://sandbox.temboplus.com/tembo/v1/collection \
+  --header 'content-type: application/json' \
+  --header 'x-account-id: ff6IfxxVceIMM6oFAc9Zig' \
+  --header 'x-secret-key: HYX5X4is3a4bnJJo4lXM936bFD6B8iMeAtXijNvHXMI==' \
+  --header 'x-request-id: 546d7a200cd8cb45d8ac'
+  --data '{
+	"channel": "TZ-AIRTEL-C2B",
+	"msisdn": "255778342299",
+	"amount": 1000,
+	"transactionRef": "ARC5847AF",
+	"narration": "Inbound trx from 0713809050",
+	"transactionDate": "2023-08-22 16:15:33",
+	"callbackUrl": "https://example.com/my-callback-path"
+    }'
+
+
+
+    //////////////////////////////////////////////// SUB SERVICE - COLLECTION BALANCE //////////////////////////////////////////////////////////
+
+    Collection Balance
+Use this endpoint to retrieve the balance of your collection account
+
+Collection Balance
+POST https://sandbox.temboplus.com/tembo/v1/wallet/collection-balance
+
+Retrieves the balance of your collection account
+
+Headers
+Name
+Type
+Description
+x-account-id*
+
+string
+
+Partner account id
+
+x-secret-key*
+
+string
+
+Partner secret key
+
+x-request-id*
+
+string
+
+Id identifying this request
+
+200 Success
+401 Permission denied
+
+{
+   "availableBalance":10000,
+   "currentBalance":10000,
+   "accountNo":"8000837333",
+   "accountStatus":"ACTIVE",
+   "accountName":"ABC TRADERS LTD - Collection"
+}
+
+curl --request POST \
+--url https://sandbox.temboplus.com/tembo/v1/wallet/collection-balance \
+--header 'content-type: application/json' \
+--header 'x-account-id: ff6IfxxVceIMM6oFAc9Zig' \
+--header 'x-secret-key: HYX5X4is3a4bnJJo4lXM936bFD6B8iMeAtXijNvHXMI==' \
+--header 'x-request-id: 546d7a200cd8cb45d8ac'
+
+
+//////////////////////////////////////////////// SUB SERVICE - COLLECTION STATEMENT //////////////////////////////////////////////////////////
+
+Collection Statement
+Use this endpoint to retrieve the statement of your collection account
+
+Collection Statement
+POST https://sandbox.temboplus.com/tembo/v1/wallet/collection-statement
+
+Check the account statement of your collection account
+
+Headers
+Name
+Type
+Description
+x-account-id*
+
+string
+
+Partner account id
+
+x-secret-key*
+
+string
+
+Partner secret key
+
+x-request-id*
+
+string
+
+A unique id identifying this request
+
+Request Body
+Name
+Type
+Description
+startDate*
+
+date string
+
+Statement start date
+
+endDate*
+
+date string
+
+Statement end date
+
+200 Success
+401 Invalid Credentials
+400: Bad Request Validation error
+
+[
+    {
+          "accountNo": "6682002103",
+          "debitOrCredit": "CR",
+          "tranRefNo": "P50ZEXA2014301CI",
+          "narration": "CURRENT MONTH SALARY",
+          "txnDate": "2020-05-22",
+          "valueDate": "2020-05-22",
+          "amountCredited": 2232745.15,
+          "amountDebited": '',
+          "balance": 2232745.15,
+        },
+        {
+          "accountNo": "668200980",
+          "debitOrCredit": "CR",
+          "tranRefNo": "P50ZEXA2014301CI",
+          "narration": "RENT PAYMENT FOR JUN 2022",
+          "txnDate": "2020-05-22",
+          "valueDate": "2020-05-22",
+          "amountCredited": 1950000.00,
+          "amountDebited": '',
+          "balance": 2132745.15,
+        }
+]
+cURL
+
+curl --request POST \
+  --url https://sandbox.temboplus.com/tembo/v1/wallet/collection-statement \
+  --header 'content-type: application/json' \
+  --header 'x-account-id: ff6IfxxVceIMM6oFAc9Zig' \
+  --header 'x-secret-key: HYX5X4is3a4bnJJo4lXM936bFD6B8iMeAtXijNvHXMI==' \
+  --header 'x-request-id: 546d7a200cd8cb45d8ac' \
+  --data  '{
+     "startDate": "2023-01-01",
+     "endDate": "2023-01-31"
+  }'
+
+
+  //////////////////////////////////////////////// SUB SERVICE - PAYMENT STATUS //////////////////////////////////////////////////////////
+  Payment Status
+Use this endpoint to check the current status of a USSD push transaction
+
+Transaction Status
+POST https://sandbox.temboplus.com/tembo/v1/collection/status
+
+Checks the current status of a USSD push transaction
+
+Headers
+Name
+Type
+Description
+x-account-id*
+
+string
+
+Partner account id
+
+x-secret-key*
+
+string
+
+Partner secret key
+
+x-request-id*
+
+string
+
+A unique id identifying this request
+
+Request Body
+Name
+Type
+Description
+transactionId*
+
+string
+
+The ID of the transaction returned by the USSD Push endpoint
+
+transactionRef*
+
+string
+
+The reference that was provided in the wallet-to-mobile endpoint
+
+200 Success
+401 Invalid Credentials
+
+{
+  "statusCode": "PAYMENT_ACCEPTED",
+  "transactionId": "X50jcLD-U",
+  "transactionRef": "20f807fe-3ee8-4525-8aff-ccb95de38250"
+}
+cURL
+
+curl --request POST \
+  --url https://sandbox.temboplus.com/tembo/v1/collection/status \
+  --header 'content-type: application/json' \
+  --header 'x-account-id: ff6IfxxVceIMM6oFAc9Zig' \
+  --header 'x-secret-key: HYX5X4is3a4bnJJo4lXM936bFD6B8iMeAtXijNvHXMI==' \
+  --header 'x-request-id: 546d7a200cd8cb45d8ac'
+  --data '{
+	"transactionRef": "Hyu8373HmsI",
+	"transactionId": "X50jcLDcU"
+  }'

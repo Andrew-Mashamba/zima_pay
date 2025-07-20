@@ -1,0 +1,138 @@
+{
+  "info": {
+    "name": "Generate Universal Payment Link",
+    "description": "Test request for generating universal payment links with HMAC authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Generate Individual Payment Link",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "sample_client_key_ABC123DEF456"
+          },
+          {
+            "key": "X-Timestamp",
+            "value": "{{timestamp}}"
+          },
+          {
+            "key": "X-Nonce",
+            "value": "{{nonce}}"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{signature}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Loan Repayment - Installment #3 of 12\",\n  \"target\": \"individual\",\n  \"customer_reference\": \"LOAN_2025_001\",\n  \"customer_name\": \"Sarah Johnson\",\n  \"customer_phone\": \"255723456789\",\n  \"customer_email\": \"sarah@email.com\",\n  \"expires_at\": \"2025-07-27T10:00:00Z\",\n  \"items\": [\n    {\n      \"type\": \"service\",\n      \"product_service_reference\": \"LOAN_INST_003\",\n      \"product_service_name\": \"Loan Installment\",\n      \"amount\": 75000,\n      \"is_required\": true,\n      \"allow_partial\": false\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/payment-links/generate-universal",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["api", "payment-links", "generate-universal"]
+        }
+      }
+    },
+    {
+      "name": "Generate Public Payment Link",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "sample_client_key_ABC123DEF456"
+          },
+          {
+            "key": "X-Timestamp",
+            "value": "{{timestamp}}"
+          },
+          {
+            "key": "X-Nonce",
+            "value": "{{nonce}}"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{signature}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Sunday Service Donation - St. Mary's Church\",\n  \"target\": \"public\",\n  \"customer_reference\": \"CHURCH_SADAKA_001\",\n  \"expires_at\": \"2025-08-19T10:00:00Z\",\n  \"items\": [\n    {\n      \"type\": \"service\",\n      \"product_service_reference\": \"DONATION_GENERAL\",\n      \"product_service_name\": \"General Donation\",\n      \"amount\": 10000,\n      \"is_required\": false,\n      \"allow_partial\": true,\n      \"minimum_amount\": 5000\n    },\n    {\n      \"type\": \"service\",\n      \"product_service_reference\": \"DONATION_BUILDING\",\n      \"product_service_name\": \"Building Fund\",\n      \"amount\": 5000,\n      \"is_required\": false,\n      \"allow_partial\": true,\n      \"minimum_amount\": 2000\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/payment-links/generate-universal",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["api", "payment-links", "generate-universal"]
+        }
+      }
+    },
+    {
+      "name": "Generate Multi-Item Business Invoice",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "sample_client_key_ABC123DEF456"
+          },
+          {
+            "key": "X-Timestamp",
+            "value": "{{timestamp}}"
+          },
+          {
+            "key": "X-Nonce",
+            "value": "{{nonce}}"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{signature}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Business Services Invoice #2025-001\",\n  \"target\": \"individual\",\n  \"customer_reference\": \"INVOICE_2025_001\",\n  \"customer_name\": \"Business Corp Ltd\",\n  \"customer_phone\": \"255789123456\",\n  \"customer_email\": \"accounts@businesscorp.com\",\n  \"expires_at\": \"2025-08-03T10:00:00Z\",\n  \"items\": [\n    {\n      \"type\": \"service\",\n      \"product_service_reference\": \"CONSULT_001\",\n      \"product_service_name\": \"Business Strategy Consultation\",\n      \"amount\": 150000,\n      \"is_required\": true,\n      \"allow_partial\": true,\n      \"minimum_amount\": 30000\n    },\n    {\n      \"type\": \"product\",\n      \"product_service_reference\": \"REPORT_001\",\n      \"product_service_name\": \"Market Research Report\",\n      \"amount\": 100000,\n      \"is_required\": true,\n      \"allow_partial\": true,\n      \"minimum_amount\": 20000\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/payment-links/generate-universal",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["api", "payment-links", "generate-universal"]
+        }
+      }
+    }
+  ]
+} 

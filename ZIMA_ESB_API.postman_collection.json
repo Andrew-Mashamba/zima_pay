@@ -1,0 +1,616 @@
+{
+	"info": {
+		"_postman_id": "zima-esb-api-collection",
+		"name": "ZIMA ESB API",
+		"description": "Complete API collection for ZIMA Enterprise Service Bus integration",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "zima-esb"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Test API Credentials",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/esb/transaction/test",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"transaction",
+								"test"
+							]
+						},
+						"description": "Test your API credentials to ensure they are valid"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication and credential testing endpoints"
+		},
+		{
+			"name": "Money Collection",
+			"item": [
+				{
+					"name": "Airtel Money Collection",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255692410353\",\n  \"mobile_network\": \"TZ-AIRTEL-C2B\",\n  \"amount\": 1000,\n  \"description\": \"Payment for services\",\n  \"reference\": \"TXN_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Initiate a money collection transaction using Airtel Money"
+					},
+					"response": []
+				},
+				{
+					"name": "Tigo Money Collection",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255778342299\",\n  \"mobile_network\": \"TZ-TIGO-C2B\",\n  \"amount\": 1000,\n  \"description\": \"Payment for services\",\n  \"reference\": \"TXN_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Initiate a money collection transaction using Tigo Pesa"
+					},
+					"response": []
+				},
+				{
+					"name": "M-Pesa Money Collection",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255692410353\",\n  \"mobile_network\": \"TZ-MPESA-C2B\",\n  \"amount\": 1000,\n  \"description\": \"Payment for services\",\n  \"reference\": \"TXN_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Initiate a money collection transaction using M-Pesa"
+					},
+					"response": []
+				},
+				{
+					"name": "HaloPesa Money Collection",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255692410353\",\n  \"mobile_network\": \"TZ-HALOPESA-C2B\",\n  \"amount\": 1000,\n  \"description\": \"Payment for services\",\n  \"reference\": \"TXN_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Initiate a money collection transaction using HaloPesa"
+					},
+					"response": []
+				},
+				{
+					"name": "Large Amount Transaction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255692410353\",\n  \"mobile_network\": \"TZ-AIRTEL-C2B\",\n  \"amount\": 150000,\n  \"description\": \"Large payment for services\",\n  \"reference\": \"TXN_LARGE_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Test large amount transaction (TZS 150,000)"
+					},
+					"response": []
+				}
+			],
+			"description": "Money collection endpoints for all supported mobile networks"
+		},
+		{
+			"name": "Transaction Status",
+			"item": [
+				{
+					"name": "Check Transaction Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/esb/transaction/{{transaction_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"transaction",
+								"{{transaction_id}}"
+							]
+						},
+						"description": "Check the current status of a transaction"
+					},
+					"response": []
+				},
+				{
+					"name": "Check Callback Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/callback/status/{{transaction_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"callback",
+								"status",
+								"{{transaction_id}}"
+							]
+						},
+						"description": "Check the callback processing status for a transaction"
+					},
+					"response": []
+				}
+			],
+			"description": "Transaction status checking endpoints"
+		},
+		{
+			"name": "Error Testing",
+			"item": [
+				{
+					"name": "Invalid API Credentials",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "invalid_key",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "invalid_secret",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255692410353\",\n  \"mobile_network\": \"TZ-AIRTEL-C2B\",\n  \"amount\": 1000,\n  \"description\": \"Payment for services\",\n  \"reference\": \"TXN_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Test error handling with invalid API credentials"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Phone Number",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"1234567890\",\n  \"mobile_network\": \"TZ-AIRTEL-C2B\",\n  \"amount\": 1000,\n  \"description\": \"Payment for services\",\n  \"reference\": \"TXN_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Test validation with invalid phone number format"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Amount",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255692410353\",\n  \"mobile_network\": \"TZ-AIRTEL-C2B\",\n  \"amount\": 50,\n  \"description\": \"Payment for services\",\n  \"reference\": \"TXN_{{$timestamp}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"webhook_url\": \"https://webhook.site/your-webhook-url\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Test validation with amount below minimum (TZS 50)"
+					},
+					"response": []
+				},
+				{
+					"name": "Missing Required Fields",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{api_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Secret",
+								"value": "{{api_secret}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_phone\": \"255692410353\",\n  \"amount\": 1000\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/esb/MONEY_COLLECTION",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"esb",
+								"MONEY_COLLECTION"
+							]
+						},
+						"description": "Test validation with missing required fields"
+					},
+					"response": []
+				}
+			],
+			"description": "Error testing scenarios for validation and error handling"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set default values for dynamic variables",
+					"if (!pm.environment.get('timestamp')) {",
+					"    pm.environment.set('timestamp', Math.floor(Date.now() / 1000));",
+					"}",
+					"",
+					"if (!pm.environment.get('isoTimestamp')) {",
+					"    const now = new Date();",
+					"    pm.environment.set('isoTimestamp', now.toISOString().slice(0, 19).replace('T', ' '));",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Common test script for all requests",
+					"pm.test('Status code is 200 or 400', function () {",
+					"    pm.expect(pm.response.code).to.be.oneOf([200, 400, 401, 422]);",
+					"});",
+					"",
+					"pm.test('Response has required fields', function () {",
+					"    const response = pm.response.json();",
+					"    pm.expect(response).to.have.property('status');",
+					"    pm.expect(response).to.have.property('message');",
+					"});",
+					"",
+					"// Store transaction ID for subsequent requests",
+					"if (pm.response.code === 200) {",
+					"    const response = pm.response.json();",
+					"    if (response.transaction_id) {",
+					"        pm.environment.set('transaction_id', response.transaction_id);",
+					"    }",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000/api",
+			"type": "string"
+		},
+		{
+			"key": "api_key",
+			"value": "test_bank_key_8CGbIjJCMRWLjFll",
+			"type": "string"
+		},
+		{
+			"key": "api_secret",
+			"value": "test_bank_secret_GtlfgLnQYUpcTwOry9LV1xvRcCVFO1Ci",
+			"type": "string"
+		},
+		{
+			"key": "transaction_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "timestamp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "isoTimestamp",
+			"value": "",
+			"type": "string"
+		}
+	]
+} 
