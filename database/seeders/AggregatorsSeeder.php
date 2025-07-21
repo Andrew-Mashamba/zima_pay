@@ -44,6 +44,9 @@ class AggregatorsSeeder extends Seeder
             DB::table('aggregators')->insert($aggregator);
         }
 
+        // Reset PostgreSQL sequence for aggregators table
+        DB::statement("SELECT setval('aggregators_id_seq', (SELECT MAX(id) FROM aggregators))");
+
         $this->command->info('Aggregators seeded successfully!');
     }
 }

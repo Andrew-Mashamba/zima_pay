@@ -214,6 +214,9 @@ class PaymentLinksSeeder extends Seeder
             DB::table('payment_links')->insert($link);
         }
 
+        // Reset PostgreSQL sequence for payment_links table
+        DB::statement("SELECT setval('payment_links_id_seq', (SELECT MAX(id) FROM payment_links))");
+
         $this->command->info('Payment Links seeded successfully!');
     }
 }

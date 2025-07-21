@@ -75,6 +75,9 @@ class ClientsSeeder extends Seeder
             DB::table('clients')->insert($client);
         }
 
+        // Reset PostgreSQL sequence for clients table
+        DB::statement("SELECT setval('clients_id_seq', (SELECT MAX(id) FROM clients))");
+
         $this->command->info('Clients seeded successfully!');
     }
 }

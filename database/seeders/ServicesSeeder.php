@@ -141,15 +141,18 @@ class ServicesSeeder extends Seeder
             ]
         ];
 
-        // Clear existing data and insert new data
-        DB::table('services')->truncate();
-        DB::table('services')->insert($services);
+        // Insert new data
+        foreach ($services as $service) {
+            DB::table('services')->insert($service);
+        }
+
+        // Reset PostgreSQL sequence for services table
+        DB::statement("SELECT setval('services_id_seq', (SELECT MAX(id) FROM services))");
 
         $this->command->info('Services seeded successfully!');
         $this->command->info('Created ' . count($services) . ' services:');
-        
         foreach ($services as $service) {
-            $this->command->line('- ' . $service['name'] . ' (' . $service['code'] . ')');
+            $this->command->info('- ' . $service['name'] . ' (' . $service['code'] . ')');
         }
     }
 }

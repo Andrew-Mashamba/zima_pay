@@ -120,6 +120,9 @@ class ServiceMappingsSeeder extends Seeder
             DB::table('service_mappings')->insert($mapping);
         }
 
+        // Reset PostgreSQL sequence for service_mappings table
+        DB::statement("SELECT setval('service_mappings_id_seq', (SELECT MAX(id) FROM service_mappings))");
+
         $this->command->info('Service Mappings seeded successfully!');
     }
 }

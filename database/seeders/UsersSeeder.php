@@ -49,6 +49,9 @@ class UsersSeeder extends Seeder
             DB::table('users')->insert($user);
         }
 
+        // Reset PostgreSQL sequence for users table
+        DB::statement("SELECT setval('users_id_seq', (SELECT MAX(id) FROM users))");
+
         $this->command->info('Users seeded successfully!');
     }
 }
