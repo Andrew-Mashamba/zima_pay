@@ -19,5 +19,18 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Call other seeders in the correct order
+        $this->call([
+            UsersSeeder::class,
+            AggregatorsSeeder::class,
+            ServicesSeeder::class,
+            ClientsSeeder::class,
+            ServiceMappingsSeeder::class,
+            PaymentLinksSeeder::class,
+            PaymentLinkItemsSeeder::class,
+            ClientAggregatorSeeder::class,
+            ClientServiceSeeder::class,
+        ]);
     }
 }
