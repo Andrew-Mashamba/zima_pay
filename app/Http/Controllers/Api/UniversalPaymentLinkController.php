@@ -18,15 +18,21 @@ class UniversalPaymentLinkController extends Controller
         $this->universalPaymentLinkService = $universalPaymentLinkService;
     }
 
-    /**
-     * Generate universal payment link
-     */
     public function generateUniversal(Request $request)
     {
+        Log::info('Initiating universal payment link generation request', [
+            'request_data' => $request->all()
+        ]);
+
         try {
-            // Authenticate client
+            Log::info('Authenticating client for payment link generation');
             $client = $this->authenticateClient($request);
+
             if (!$client) {
+                Log::warning('Client authentication failed', [
+                    'headers' => $request->headers->all()
+                ]);
+
                 return response()->json([
                     'status' => 'error',
                     'error_code' => 'AUTH_001',
@@ -37,7 +43,9 @@ class UniversalPaymentLinkController extends Controller
                 ], 401);
             }
 
-            // Validate request data
+            Log::info('Client authenticated successfully', ['client_id' => $client->id]);
+
+            Log::info('Validating request data');
             $validator = Validator::make($request->all(), [
                 'description' => 'required|string|max:255',
                 'target' => 'required|in:individual,public',
@@ -68,8 +76,8 @@ class UniversalPaymentLinkController extends Controller
                 'cancel_url' => 'nullable|url',
             ]);
 
-            // Add conditional validation for individual targets
             if ($request->input('target') === 'individual') {
+                Log::info('Adding additional validation rules for individual target');
                 $validator->addRules([
                     'customer_name' => 'required|string|max:255',
                     'customer_phone' => 'required|regex:/^255[0-9]{9}$/',
@@ -77,6 +85,11 @@ class UniversalPaymentLinkController extends Controller
             }
 
             if ($validator->fails()) {
+                Log::warning('Validation failed', [
+                    'errors' => $validator->errors(),
+                    'client_id' => $client->id
+                ]);
+
                 return response()->json([
                     'status' => 'error',
                     'error_code' => 'VALIDATION_001',
@@ -89,13 +102,21 @@ class UniversalPaymentLinkController extends Controller
                 ], 400);
             }
 
-            // Generate universal payment link
+            Log::info('Validation passed, generating universal payment link', [
+                'client_id' => $client->id
+            ]);
+
             $result = $this->universalPaymentLinkService->generateUniversalPaymentLink(
                 $request->all(),
                 $client
             );
 
             if (!$result['success']) {
+                Log::error('Payment link generation failed', [
+                    'error' => $result['error'],
+                    'client_id' => $client->id
+                ]);
+
                 return response()->json([
                     'status' => 'error',
                     'error_code' => 'GENERATION_001',
@@ -106,7 +127,7 @@ class UniversalPaymentLinkController extends Controller
                 ], 400);
             }
 
-            Log::info('Universal payment link generated via API', [
+            Log::info('Universal payment link generated', [
                 'client_id' => $client->id,
                 'link_id' => $result['data']['link_id'],
                 'target_type' => $result['data']['target_type'],
@@ -122,8 +143,8 @@ class UniversalPaymentLinkController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            Log::error('Universal payment link generation error', [
-                'error' => $e->getMessage(),
+            Log::error('Exception during universal payment link generation', [
+                'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'request_data' => $request->all()
             ]);
@@ -139,15 +160,16 @@ class UniversalPaymentLinkController extends Controller
         }
     }
 
-    /**
-     * Get universal payment link details
-     */
     public function getUniversalPaymentLink($shortCode)
     {
+        Log::info('Fetching universal payment link details', ['short_code' => $shortCode]);
+
         try {
             $paymentLink = $this->universalPaymentLinkService->getUniversalPaymentLink($shortCode);
-            
+
             if (!$paymentLink) {
+                Log::warning('Payment link not found', ['short_code' => $shortCode]);
+
                 return response()->json([
                     'status' => 'error',
                     'error_code' => 'NOT_FOUND_001',
@@ -157,6 +179,8 @@ class UniversalPaymentLinkController extends Controller
                     'request_id' => 'req_' . uniqid()
                 ], 404);
             }
+
+            Log::info('Payment link found', ['link_id' => $paymentLink->link_id]);
 
             return response()->json([
                 'status' => 'success',
@@ -205,9 +229,10 @@ class UniversalPaymentLinkController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Get universal payment link error', [
+            Log::error('Error retrieving universal payment link', [
                 'error' => $e->getMessage(),
-                'short_code' => $shortCode
+                'short_code' => $shortCode,
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -221,15 +246,18 @@ class UniversalPaymentLinkController extends Controller
         }
     }
 
-    /**
-     * Get universal payment link statistics
-     */
     public function getUniversalPaymentLinkStats($shortCode, Request $request)
     {
+        Log::info('Fetching stats for payment link', ['short_code' => $shortCode]);
+
         try {
-            // Authenticate client
             $client = $this->authenticateClient($request);
+
             if (!$client) {
+                Log::warning('Client authentication failed for stats request', [
+                    'headers' => $request->headers->all()
+                ]);
+
                 return response()->json([
                     'status' => 'error',
                     'error_code' => 'AUTH_001',
@@ -240,11 +268,18 @@ class UniversalPaymentLinkController extends Controller
                 ], 401);
             }
 
+            Log::info('Client authenticated for stats request', ['client_id' => $client->id]);
+
             $paymentLink = \App\Models\PaymentLink::where('short_code', $shortCode)
                 ->where('client_id', $client->id)
                 ->first();
 
             if (!$paymentLink) {
+                Log::warning('Payment link not found for stats', [
+                    'short_code' => $shortCode,
+                    'client_id' => $client->id
+                ]);
+
                 return response()->json([
                     'status' => 'error',
                     'error_code' => 'NOT_FOUND_001',
@@ -257,6 +292,8 @@ class UniversalPaymentLinkController extends Controller
 
             $stats = $this->universalPaymentLinkService->getUniversalPaymentLinkStats($paymentLink);
 
+            Log::info('Stats retrieved successfully', ['link_id' => $paymentLink->link_id]);
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Payment link statistics retrieved successfully',
@@ -266,9 +303,10 @@ class UniversalPaymentLinkController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Get universal payment link stats error', [
+            Log::error('Error retrieving payment link stats', [
                 'error' => $e->getMessage(),
-                'short_code' => $shortCode
+                'short_code' => $shortCode,
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -282,29 +320,38 @@ class UniversalPaymentLinkController extends Controller
         }
     }
 
-    /**
-     * Authenticate client using API key and secret
-     */
     private function authenticateClient(Request $request)
     {
         $apiKey = $request->header('X-API-Key');
         $apiSecret = $request->header('X-API-Secret');
 
+        Log::debug('Authenticating client', [
+            'has_api_key' => isset($apiKey),
+            'has_api_secret' => isset($apiSecret)
+        ]);
+
         if (!$apiKey || !$apiSecret) {
             return null;
         }
 
-        return Client::where('api_key', $apiKey)
+        $client = Client::where('api_key', $apiKey)
             ->where('api_secret', $apiSecret)
             ->where('status', true)
             ->first();
+
+        if ($client) {
+            Log::info('Client authenticated', ['client_id' => $client->id]);
+        } else {
+            Log::warning('Client credentials invalid or client inactive');
+        }
+
+        return $client;
     }
 
-    /**
-     * Get validation suggestions based on target type
-     */
     private function getValidationSuggestions($target)
     {
+        Log::debug('Generating validation suggestions for target', ['target' => $target]);
+
         if ($target === 'individual') {
             return [
                 'Provide customer_name and customer_phone for individual targets',
@@ -317,4 +364,4 @@ class UniversalPaymentLinkController extends Controller
             'Use target "public" for general collections'
         ];
     }
-} 
+}
