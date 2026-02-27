@@ -2,349 +2,462 @@
 
 namespace App\Services;
 
-use App\Models\PaymentLink;
-use App\Models\Client;
-use App\Models\ServiceMapping;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Exception;
 use Carbon\Carbon;
 
 class PaymentLinkService
 {
+    private $baseUrl;
+    private $apiKey;
+    private $apiSecret;
+    private $frontendUrl;
+    
+    public function __construct()
+    {
+        $this->baseUrl = config('services.payment_gateway.base_url', 'http://172.240.241.188');
+        $this->apiKey = config('services.payment_gateway.api_key', 'sample_client_key_ABC123DEF456');
+        $this->apiSecret = config('services.payment_gateway.api_secret', 'sample_client_secret_XYZ789GHI012');
+        $this->frontendUrl = config('services.payment_gateway.frontend_url', config('services.payment_gateway.base_url', 'http://172.240.241.188'));
+    }
+    
     /**
-     * Generate a new payment link
+     * Generate a universal payment link
+     * 
+     * @param array $data Payment link data
+     * @return array Response containing payment URL and other details
+     * @throws Exception
      */
-    public function generatePaymentLink(array $data, Client $client): array
+    public function generateUniversalPaymentLink(array $data)
     {
         try {
-            // Validate input data
-            $validation = $this->validatePaymentLinkData($data);
-            if (!$validation['valid']) {
-                return [
-                    'success' => false,
-                    'error' => 'Validation failed',
-                    'errors' => $validation['errors']
-                ];
-            }
-
-            // Get service mapping for money collection
-            $serviceMapping = ServiceMapping::where('client_id', $client->id)
-                ->whereHas('service', function($q) {
-                    $q->where('code', 'MONEY_COLLECTION');
-                })->first();
-
-            if (!$serviceMapping) {
-                return [
-                    'success' => false,
-                    'error' => 'Money collection service not available for this client'
-                ];
-            }
-
-            // Create payment link
-            $paymentLink = PaymentLink::create([
-                'client_reference' => $data['reference'] ?? 'LINK_' . Str::random(16),
-                'client_id' => $client->id,
-                'service_mapping_id' => $serviceMapping->id,
-                'amount' => $data['amount'],
-                'currency' => $data['currency'] ?? 'TZS',
-                'description' => $data['description'],
-                'narration' => $data['narration'] ?? $data['description'],
-                'customer_phone' => $data['customer_phone'] ?? null,
-                'customer_name' => $data['customer_name'] ?? null,
-                'customer_email' => $data['customer_email'] ?? null,
-                'payment_method' => $data['payment_method'] ?? 'mobile_money',
-                'allowed_networks' => $data['allowed_networks'] ?? [
-                    'TZ-AIRTEL-C2B',
-                    'TZ-TIGO-C2B',
-                    'TZ-MPESA-C2B',
-                    'TZ-HALOPESA-C2B'
+            $url = config('services.payment_gateway.url', $this->baseUrl . '/api/payment-links/generate-universal');
+            
+            // Prepare request data
+            $requestData = $this->prepareRequestData($data);
+            
+            // Prepare headers with authentication
+            $headers = [
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'X-API-Key' => $this->apiKey,
+                'X-API-Secret' => $this->apiSecret
+            ];
+            
+            // Log request details for debugging
+            Log::info('Payment link API request', [
+                'url' => $url,
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                    'X-API-Key' => substr($this->apiKey, 0, 10) . '...', // Log partial key for security
+                    'X-API-Secret' => substr($this->apiSecret, 0, 10) . '...' // Log partial secret for security
                 ],
-                'allow_partial_payment' => $data['allow_partial_payment'] ?? false,
-                'minimum_amount' => $data['minimum_amount'] ?? null,
-                'maximum_amount' => $data['maximum_amount'] ?? null,
-                'expires_at' => $data['expires_at'] ? Carbon::parse($data['expires_at']) : null,
-                'max_uses' => $data['max_uses'] ?? null,
-                'is_reusable' => $data['is_reusable'] ?? false,
-                'is_public' => $data['is_public'] ?? true,
-                'metadata' => $data['metadata'] ?? null,
-                'settings' => $data['settings'] ?? null,
-                'webhook_url' => $data['webhook_url'] ?? $client->webhook_url,
-                'success_url' => $data['success_url'] ?? null,
-                'failure_url' => $data['failure_url'] ?? null,
-                'cancel_url' => $data['cancel_url'] ?? null,
-                'created_by' => $data['created_by'] ?? 'api',
+                'payload_size' => strlen(json_encode($requestData)),
+                'customer_reference' => $requestData['customer_reference'] ?? null
+            ]);
+            
+            // Make API request with required authentication headers
+            $response = Http::withHeaders($headers)
+            ->timeout(30)
+            ->post($url, $requestData);
+            
+            // Check if request was successful
+            if (!$response->successful()) {
+                Log::error('Payment link generation failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'request' => $requestData
+                ]);
+                
+                throw new Exception('Failed to generate payment link: ' . $response->body());
+            }
+            
+            $responseData = $response->json();
+
+            // Construct local payment URL using configured frontend URL
+            if (isset($responseData['data']['payment_url'])) {
+                $originalUrl = $responseData['data']['payment_url'];
+
+                // Extract payment reference from the original URL (e.g., LN202511061953)
+                if (preg_match('/\/pay\/([^\/\?]+)/', $originalUrl, $matches)) {
+                    $paymentReference = $matches[1];
+                    $responseData['data']['payment_url'] = rtrim($this->frontendUrl, '/') . '/pay/' . $paymentReference;
+                }
+            }
+
+            // Log successful response
+            Log::info('Payment link generated successfully', [
+                'link_id' => $responseData['data']['link_id'] ?? null,
+                'payment_url' => $responseData['data']['payment_url'] ?? null,
+                'original_payment_url' => $originalUrl ?? null,
+                'customer_reference' => $requestData['customer_reference'] ?? null
             ]);
 
-            Log::info('Payment link generated', [
-                'link_id' => $paymentLink->link_id,
-                'short_code' => $paymentLink->short_code,
-                'client_id' => $client->id,
-                'amount' => $paymentLink->amount
+            return $responseData;
+            
+        } catch (Exception $e) {
+            Log::error('Payment link generation exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
-
-            return [
-                'success' => true,
-                'data' => [
-                    'link_id' => $paymentLink->link_id,
-                    'short_code' => $paymentLink->short_code,
-                    'payment_url' => $paymentLink->payment_url,
-                    'qr_code_data' => $paymentLink->qr_code_data,
-                    'amount' => $paymentLink->amount,
-                    'currency' => $paymentLink->currency,
-                    'description' => $paymentLink->description,
-                    'expires_at' => $paymentLink->expires_at?->toISOString(),
-                    'max_uses' => $paymentLink->max_uses,
-                    'is_reusable' => $paymentLink->is_reusable,
-                    'allowed_networks' => $paymentLink->allowed_networks_array,
-                    'created_at' => $paymentLink->created_at->toISOString()
-                ]
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Payment link generation failed', [
-                'error' => $e->getMessage(),
-                'client_id' => $client->id,
-                'data' => $data
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Payment link generation failed: ' . $e->getMessage()
-            ];
+            
+            throw $e;
         }
     }
-
+    
     /**
-     * Get payment link by short code
+     * Generate payment link and return only the payment URL
+     * 
+     * @param array $data Payment link data
+     * @return string Payment URL
+     * @throws Exception
      */
-    public function getPaymentLink(string $shortCode): ?PaymentLink
+    public function getPaymentUrl(array $data)
     {
-        $paymentLink = PaymentLink::where('short_code', $shortCode)
-            ->where('is_public', true)
-            ->with(['client', 'serviceMapping'])
-            ->first();
-
-        if ($paymentLink) {
-            // Increment view count
-            $paymentLink->incrementViews();
+        $response = $this->generateUniversalPaymentLink($data);
+        
+        if (!isset($response['data']['payment_url'])) {
+            throw new Exception('Payment URL not found in response');
         }
-
-        return $paymentLink;
+        
+        return $response['data']['payment_url'];
     }
-
+    
     /**
-     * Process payment through payment link
+     * Generate payment link for member shares and deposits
+     * 
+     * @param string $memberReference Member reference/ID
+     * @param string $memberName Member full name
+     * @param string $memberPhone Member phone number
+     * @param string $memberEmail Member email address
+     * @param float $sharesAmount Amount for mandatory shares
+     * @param float $depositsAmount Amount for deposits
+     * @param array $options Additional options
+     * @return array Response with payment details
      */
-    public function processPayment(PaymentLink $paymentLink, array $paymentData): array
-    {
-        try {
-            // Validate payment link can be used
-            if (!$paymentLink->can_be_used) {
-                return [
-                    'success' => false,
-                    'error' => 'Payment link is not available for use'
-                ];
-            }
-
-            // Validate payment amount
-            $amount = $paymentData['amount'] ?? $paymentLink->amount;
-            if (!$paymentLink->validatePaymentAmount($amount)) {
-                return [
-                    'success' => false,
-                    'error' => 'Invalid payment amount'
-                ];
-            }
-
-            // Validate mobile network
-            $network = $paymentData['mobile_network'] ?? null;
-            if ($network && !$paymentLink->isNetworkAllowed($network)) {
-                return [
-                    'success' => false,
-                    'error' => 'Mobile network not allowed for this payment link'
-                ];
-            }
-
-            // Create transaction data
-            $transactionData = [
-                'customer_phone' => $paymentData['customer_phone'],
-                'mobile_network' => $paymentData['mobile_network'],
-                'amount' => $amount,
-                'description' => $paymentLink->description,
-                'reference' => $paymentLink->client_reference . '_' . Str::random(8),
-                'date' => now()->format('Y-m-d H:i:s'),
-                'webhook_url' => $paymentLink->webhook_url,
-                'metadata' => [
-                    'payment_link_id' => $paymentLink->link_id,
-                    'payment_link_short_code' => $paymentLink->short_code,
-                    'customer_name' => $paymentData['customer_name'] ?? $paymentLink->customer_name,
-                    'customer_email' => $paymentData['customer_email'] ?? $paymentLink->customer_email,
-                ]
-            ];
-
-            // Process through ESB
-            $esbService = new EsbService();
-            $result = $esbService->processRequest(
-                $paymentLink->serviceMapping,
-                $transactionData,
-                $this->createTransaction($paymentLink, $transactionData)
-            );
-
-            // Increment usage count if successful
-            if ($result['success']) {
-                $paymentLink->incrementUses();
-            }
-
-            return $result;
-
-        } catch (\Exception $e) {
-            Log::error('Payment link processing failed', [
-                'error' => $e->getMessage(),
-                'payment_link_id' => $paymentLink->link_id,
-                'payment_data' => $paymentData
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Payment processing failed: ' . $e->getMessage()
+    public function generateMemberPaymentLink(
+        string $memberReference,
+        string $memberName,
+        string $memberPhone,
+        string $memberEmail,
+        float $sharesAmount,
+        float $depositsAmount,
+        array $options = []
+    ) {
+        $items = [];
+        
+        // Add shares item if amount > 0
+        if ($sharesAmount > 0) {
+            $items[] = [
+                'type' => 'service',
+                'product_service_reference' => $options['shares_reference'] ?? 'SHARES_01',
+                'product_service_name' => $options['shares_name'] ?? 'MANDATORY SHARES',
+                'amount' => $sharesAmount,
+                'is_required' => true,
+                'allow_partial' => false
             ];
         }
-    }
-
-    /**
-     * Get payment link statistics
-     */
-    public function getPaymentLinkStats(PaymentLink $paymentLink): array
-    {
-        return [
-            'link_id' => $paymentLink->link_id,
-            'short_code' => $paymentLink->short_code,
-            'status' => $paymentLink->status,
-            'amount' => $paymentLink->amount,
-            'currency' => $paymentLink->currency,
-            'views_count' => $paymentLink->views_count,
-            'current_uses' => $paymentLink->current_uses,
-            'max_uses' => $paymentLink->max_uses,
-            'total_collected' => $paymentLink->total_collected,
-            'successful_transactions_count' => $paymentLink->successful_transactions_count,
-            'conversion_rate' => $paymentLink->conversion_rate,
-            'created_at' => $paymentLink->created_at->toISOString(),
-            'expires_at' => $paymentLink->expires_at?->toISOString(),
-            'last_viewed_at' => $paymentLink->last_viewed_at?->toISOString(),
+        
+        // Add deposits item if amount > 0
+        if ($depositsAmount > 0) {
+            $items[] = [
+                'type' => 'service',
+                'product_service_reference' => $options['deposits_reference'] ?? 'DEPOSITS_07',
+                'product_service_name' => $options['deposits_name'] ?? 'DEPOSITS',
+                'amount' => $depositsAmount,
+                'is_required' => true,
+                'allow_partial' => true
+            ];
+        }
+        
+        if (empty($items)) {
+            throw new Exception('At least one payment item (shares or deposits) must have amount > 0');
+        }
+        
+        $data = [
+            'description' => $options['description'] ?? 'Saccos services',
+            'target' => 'individual',
+            'customer_reference' => $memberReference,
+            'customer_name' => $memberName,
+            'customer_phone' => $this->formatPhoneNumber($memberPhone),
+            'customer_email' => $memberEmail,
+            'expires_at' => $options['expires_at'] ?? Carbon::now()->addDays(7)->toIso8601String(),
+            'items' => $items
         ];
+        
+        return $this->generateUniversalPaymentLink($data);
     }
-
+    
     /**
-     * List payment links for a client
+     * Generate payment link for loan repayment
+     * 
+     * @param string $loanReference Loan reference/ID
+     * @param string $memberName Member full name
+     * @param string $memberPhone Member phone number
+     * @param float $amount Repayment amount
+     * @param array $options Additional options
+     * @return string Payment URL
      */
-    public function listPaymentLinks(Client $client, array $filters = []): array
-    {
-        $query = PaymentLink::where('client_id', $client->id);
-
-        // Apply filters
-        if (isset($filters['status'])) {
-            $query->where('status', $filters['status']);
-        }
-
-        if (isset($filters['date_from'])) {
-            $query->whereDate('created_at', '>=', $filters['date_from']);
-        }
-
-        if (isset($filters['date_to'])) {
-            $query->whereDate('created_at', '<=', $filters['date_to']);
-        }
-
-        $paymentLinks = $query->orderBy('created_at', 'desc')
-            ->paginate($filters['per_page'] ?? 20);
-
-        return [
-            'success' => true,
-            'data' => $paymentLinks->items(),
-            'pagination' => [
-                'current_page' => $paymentLinks->currentPage(),
-                'last_page' => $paymentLinks->lastPage(),
-                'per_page' => $paymentLinks->perPage(),
-                'total' => $paymentLinks->total(),
+    public function generateLoanPaymentUrl(
+        string $loanReference,
+        string $memberName,
+        string $memberPhone,
+        float $amount,
+        array $options = []
+    ) {
+        $data = [
+            'description' => $options['description'] ?? 'Loan repayment',
+            'target' => 'individual',
+            'customer_reference' => $loanReference,
+            'customer_name' => $memberName,
+            'customer_phone' => $this->formatPhoneNumber($memberPhone),
+            'customer_email' => $options['email'] ?? null,
+            'expires_at' => $options['expires_at'] ?? Carbon::now()->addDays(3)->toIso8601String(),
+            'items' => [
+                [
+                    'type' => 'service',
+                    'product_service_reference' => 'LOAN_' . $loanReference,
+                    'product_service_name' => 'LOAN REPAYMENT',
+                    'amount' => $amount,
+                    'is_required' => true,
+                    'allow_partial' => $options['allow_partial'] ?? true
+                ]
             ]
         ];
+        
+        return $this->getPaymentUrl($data);
     }
-
+    
     /**
-     * Cancel a payment link
+     * Generate payment link for loan installments with schedule data
+     * 
+     * @param int $loanId Loan ID from database
+     * @param object $client Client/member object with details
+     * @param array $schedules Array of loan schedule objects from loans_schedules table
+     * @param array $options Additional options (description, expires_at, etc.)
+     * @return array Full response with payment link details
+     * @throws Exception
      */
-    public function cancelPaymentLink(string $linkId, Client $client): array
+    public function generateLoanInstallmentsPaymentLink($loanId, $client, $schedules, array $options = [])
     {
-        $paymentLink = PaymentLink::where('link_id', $linkId)
-            ->where('client_id', $client->id)
-            ->first();
+        try {
+            Log::info('Generating payment link for loan installments', [
+                'loan_id' => $loanId,
+                'client_number' => $client->client_number ?? null,
+                'schedules_count' => count($schedules)
+            ]);
+            
+            // Build items array from loan schedules
+            $items = [];
+            $lastDueDate = null;
+            
+            $installmentNumber = 1; // Track actual installment number for display
 
-        if (!$paymentLink) {
-            return [
-                'success' => false,
-                'error' => 'Payment link not found'
+            foreach ($schedules as $index => $schedule) {
+                // SKIP first interest installment (already paid during disbursement)
+                if (isset($schedule->completion_status) && $schedule->completion_status === 'PAID') {
+                    Log::info('Skipping first interest installment from payment link', [
+                        'loan_id' => $loanId,
+                        'schedule_id' => $schedule->id,
+                        'status' => $schedule->completion_status
+                    ]);
+                    continue;
+                }
+
+                // Calculate total amount for this installment
+                $installmentAmount = ($schedule->principle ?? 0) +
+                                    ($schedule->interest ?? 0) +
+                                    ($schedule->penalties ?? 0) +
+                                    ($schedule->charges ?? 0);
+
+                // Skip if amount is zero
+                if ($installmentAmount <= 0) {
+                    continue;
+                }
+
+                // Format due date for display
+                $dueDate = 'TBA';
+                if ($schedule->installment_date) {
+                    try {
+                        $dueDate = Carbon::parse($schedule->installment_date)->format('d/m/Y');
+                    } catch (\Exception $e) {
+                        $dueDate = $schedule->installment_date;
+                    }
+                }
+
+                // Create descriptive name with installment number and due date
+                $serviceName = sprintf('Installment #%d - Due: %s', $installmentNumber, $dueDate);
+
+                $items[] = [
+                    'type' => 'service',
+                    'product_service_reference' => (string) $schedule->id, // Schedule ID as reference
+                    'product_service_name' => $serviceName,
+                    'amount' => round($installmentAmount, 2),
+                    'is_required' => ($installmentNumber === 1), // First unpaid installment is required
+                    'allow_partial' => true
+                ];
+
+                // Track last due date for expiry
+                if ($schedule->installment_date) {
+                    $lastDueDate = $schedule->installment_date;
+                }
+
+                $installmentNumber++; // Increment for next installment
+            }
+            
+            if (empty($items)) {
+                throw new Exception('No valid installments found for payment link generation');
+            }
+            
+            // Determine expiry date (end of last installment due date or provided option)
+            $expiresAt = $options['expires_at'] ?? null;
+            if (!$expiresAt && $lastDueDate) {
+                $expiresAt = Carbon::parse($lastDueDate)->endOfDay()->toIso8601String();
+            } elseif (!$expiresAt) {
+                $expiresAt = Carbon::now()->addMonths(12)->toIso8601String(); // Default to 12 months
+            }
+            
+            // Build customer name
+            $customerName = trim(
+                ($client->first_name ?? '') . ' ' . 
+                ($client->middle_name ?? '') . ' ' . 
+                ($client->last_name ?? $client->present_surname ?? '')
+            ) ?: 'SACCOS Member';
+            
+            // Prepare payment link data
+            $data = [
+                'description' => $options['description'] ?? 'SACCOS Loan Services - Loan ID: ' . $loanId,
+                'target' => 'individual',
+                'customer_reference' => $client->client_number,
+                'customer_name' => $customerName,
+                'customer_phone' => $this->formatPhoneNumber($client->phone_number ?? ''),
+                'customer_email' => $client->email ?? null,
+                'expires_at' => $expiresAt,
+                'items' => $items
             ];
+            
+            // Generate the payment link
+            $response = $this->generateUniversalPaymentLink($data);
+            
+            Log::info('Loan installments payment link generated successfully', [
+                'loan_id' => $loanId,
+                'link_id' => $response['data']['link_id'] ?? null,
+                'payment_url' => $response['data']['payment_url'] ?? null,
+                'total_amount' => $response['data']['total_amount'] ?? null
+            ]);
+            
+            return $response;
+            
+        } catch (Exception $e) {
+            Log::error('Failed to generate loan installments payment link', [
+                'loan_id' => $loanId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            throw $e;
         }
-
-        $paymentLink->markAsCancelled();
-
-        return [
-            'success' => true,
-            'message' => 'Payment link cancelled successfully'
-        ];
     }
-
+    
     /**
-     * Validate payment link data
+     * Prepare request data with validation
+     * 
+     * @param array $data Raw request data
+     * @return array Prepared request data
      */
-    private function validatePaymentLinkData(array $data): array
+    private function prepareRequestData(array $data)
     {
-        $rules = [
-            'amount' => 'required|numeric|min:100|max:1000000',
-            'description' => 'required|string|max:255',
-            'reference' => 'nullable|string|max:100',
-            'currency' => 'nullable|string|size:3',
-            'customer_phone' => 'nullable|regex:/^255[0-9]{9}$/',
-            'customer_email' => 'nullable|email',
-            'allowed_networks' => 'nullable|array',
-            'allowed_networks.*' => 'string|in:TZ-AIRTEL-C2B,TZ-TIGO-C2B,TZ-MPESA-C2B,TZ-HALOPESA-C2B',
-            'expires_at' => 'nullable|date|after:now',
-            'max_uses' => 'nullable|integer|min:1|max:1000',
-            'webhook_url' => 'nullable|url',
-            'success_url' => 'nullable|url',
-            'failure_url' => 'nullable|url',
-            'cancel_url' => 'nullable|url',
-        ];
-
-        $validator = Validator::make($data, $rules);
-
-        return [
-            'valid' => !$validator->fails(),
-            'errors' => $validator->errors()
-        ];
+        // Validate required fields
+        $required = ['description', 'target', 'customer_reference', 'customer_name', 'customer_phone', 'items'];
+        foreach ($required as $field) {
+            if (!isset($data[$field]) || empty($data[$field])) {
+                throw new Exception("Required field '{$field}' is missing");
+            }
+        }
+        
+        // Validate items
+        if (!is_array($data['items']) || empty($data['items'])) {
+            throw new Exception('Items must be a non-empty array');
+        }
+        
+        foreach ($data['items'] as $index => $item) {
+            $itemRequired = ['type', 'product_service_reference', 'product_service_name', 'amount'];
+            foreach ($itemRequired as $field) {
+                if (!isset($item[$field])) {
+                    throw new Exception("Item {$index}: Required field '{$field}' is missing");
+                }
+            }
+        }
+        
+        // Format phone number if needed
+        if (isset($data['customer_phone'])) {
+            $data['customer_phone'] = $this->formatPhoneNumber($data['customer_phone']);
+        }
+        
+        // Set default expires_at if not provided
+        if (!isset($data['expires_at'])) {
+            $data['expires_at'] = Carbon::now()->addDays(7)->toIso8601String();
+        }
+        
+        return $data;
     }
-
+    
     /**
-     * Create transaction record for payment link
+     * Format phone number to required format
+     * 
+     * @param string $phone Phone number
+     * @return string Formatted phone number
      */
-    private function createTransaction(PaymentLink $paymentLink, array $transactionData)
+    private function formatPhoneNumber(string $phone)
     {
-        return \App\Models\Transaction::create([
-            'transaction_id' => 'TXN_' . Str::random(16),
-            'client_reference' => $transactionData['reference'],
-            'client_id' => $paymentLink->client_id,
-            'aggregator_id' => $paymentLink->serviceMapping->aggregator_id,
-            'service_id' => $paymentLink->serviceMapping->service_id,
-            'service_mapping_id' => $paymentLink->service_mapping_id,
-            'amount' => $transactionData['amount'],
-            'currency' => $paymentLink->currency,
-            'customer_phone' => $transactionData['customer_phone'],
-            'mobile_network' => $transactionData['mobile_network'],
-            'description' => $transactionData['description'],
-            'narration' => $paymentLink->narration,
-            'request_data' => $transactionData,
-            'status' => 'pending',
-            'webhook_url' => $transactionData['webhook_url'],
-            'metadata' => $transactionData['metadata'] ?? [],
-        ]);
+        // Remove any non-numeric characters
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Add country code if not present
+        if (strlen($phone) === 9) {
+            $phone = '255' . $phone;
+        } elseif (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {
+            $phone = '255' . substr($phone, 1);
+        }
+        
+        return $phone;
     }
-} 
+    
+    /**
+     * Check payment status
+     * 
+     * @param string $linkId Payment link ID
+     * @return array Payment status details
+     */
+    public function checkPaymentStatus(string $linkId)
+    {
+        try {
+            $url = $this->baseUrl . '/api/payment-links/' . $linkId . '/status';
+            
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'X-API-Key' => $this->apiKey,
+                'X-API-Secret' => $this->apiSecret
+            ])
+            ->timeout(30)
+            ->get($url);
+            
+            if (!$response->successful()) {
+                throw new Exception('Failed to check payment status: ' . $response->body());
+            }
+            
+            return $response->json();
+            
+        } catch (Exception $e) {
+            Log::error('Payment status check failed', [
+                'link_id' => $linkId,
+                'error' => $e->getMessage()
+            ]);
+            
+            throw $e;
+        }
+    }
+}

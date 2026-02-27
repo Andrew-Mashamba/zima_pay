@@ -60,6 +60,7 @@ class CallbackController extends Controller
             $transaction = Transaction::where('aggregator_reference', $transactionRef)
                                     ->orWhere('external_transaction_id', $transactionRef)
                                     ->orWhere('client_reference', $transactionRef)
+                                    ->orWhere('transaction_id', $transactionRef)
                                     ->first();
 
             if (!$transaction) {

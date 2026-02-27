@@ -8,7 +8,24 @@
       "Bash(curl:*)",
       "Bash(touch:*)",
       "Bash(npm run build:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(sudo systemctl status:*)",
+      "Bash(sudo systemctl start:*)",
+      "Bash(nginx:*)",
+      "Bash(apache2:*)",
+      "Bash(httpd:*)",
+      "Read(/etc/apache2/sites-available/**)",
+      "Read(/etc/apache2/sites-available/**)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(sudo apache2ctl:*)",
+      "Bash(sudo systemctl:*)",
+      "Bash(sudo certbot:*)",
+      "Bash(dig:*)",
+      "Bash(sudo ufw:*)",
+      "Bash(cat:*)",
+      "Bash(php -r:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

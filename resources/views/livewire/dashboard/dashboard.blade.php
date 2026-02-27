@@ -10,7 +10,7 @@
                         </svg>
                     </div>
                     <div>
-                        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">ZIMA ESB Dashboard</h1>
+                        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">MICROPAY ESB Dashboard</h1>
                         <p class="text-gray-600 mt-1">Real-time enterprise service bus monitoring and analytics</p>
                     </div>
                 </div>

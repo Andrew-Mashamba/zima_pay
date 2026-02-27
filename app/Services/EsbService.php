@@ -79,10 +79,11 @@ class EsbService
                 'transformed_response' => $this->sanitizeLogData($transformedResponse),
                 'response_time' => $responseTime
             ]);
-            
-            // 6. Send webhook notification if configured
-            $this->sendWebhookNotification($transaction);
-            
+
+            // NOTE: Webhook notification is NOT sent here because the transaction is still pending.
+            // The webhook will be sent by CallbackController when the aggregator (Tembo) calls back
+            // with the final payment status (success/failed/cancelled).
+
             // Log successful processing
             Log::info('ESB Processing completed successfully', [
                 'transaction_id' => $transaction->transaction_id,

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $title ?? 'ZIMA ESB Payment' }}</title>
+    <title>{{ $title ?? 'MICROPAY ESB Payment' }}</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -50,7 +50,7 @@
                         <i class="fas fa-credit-card text-xl"></i>
                     </div>
                     <div>
-                        <h1 class="text-xl font-bold">ZIMA PAY</h1>
+                        <h1 class="text-xl font-bold">MICROPAY</h1>
                         <p class="text-sm opacity-90">Secure Payment Gateway</p>
                     </div>
                 </div>
@@ -87,7 +87,7 @@
                 </div>
             </div>
             <p class="text-sm opacity-75">
-                © 2025 ZIMA PAY. All payments are processed securely through certified mobile money providers.
+                © 2025 MICROPAY. All payments are processed securely through certified mobile money providers.
             </p>
         </div>
     </footer>

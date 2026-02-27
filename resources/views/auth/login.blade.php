@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ __('Sign In') }} - {{ config('app.name', 'ZIMA ESB') }}</title>
+    <title>{{ __('Sign In') }} - {{ config('app.name', 'MICROPAY ESB') }}</title>
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -42,7 +42,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                             </svg>
                         </div>
-                        <h1 class="text-4xl font-bold mb-2">ZIMA ESB</h1>
+                        <h1 class="text-4xl font-bold mb-2">MICROPAY ESB</h1>
                         <p class="text-blue-100 text-lg">Enterprise Service Bus</p>
                     </div>
                     
@@ -97,7 +97,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                             </svg>
                         </div>
-                        <h1 class="text-2xl font-bold text-gray-900">ZIMA ESB</h1>
+                        <h1 class="text-2xl font-bold text-gray-900">MICROPAY ESB</h1>
                     </div>
                     
                     <!-- Login Form -->
@@ -250,7 +250,7 @@
                     
                     <!-- Footer -->
                     <div class="text-center mt-8 text-sm text-gray-500">
-                        <p>&copy; {{ date('Y') }} ZIMA ESB. All rights reserved.</p>
+                        <p>&copy; {{ date('Y') }} MICROPAY ESB. All rights reserved.</p>
                         <p class="mt-1">Tanzania Mobile Money Enterprise Service Bus</p>
                     </div>
                 </div>

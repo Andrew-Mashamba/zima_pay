@@ -81,7 +81,7 @@ class UniversalPaymentLinkService
                 'allow_partial_payment' => $data['allow_partial_payment'] ?? true,
                 'minimum_amount' => $data['minimum_amount'] ?? null,
                 'maximum_amount' => $data['maximum_amount'] ?? null,
-                'expires_at' => $data['expires_at'] ? Carbon::parse($data['expires_at']) : null,
+                'expires_at' => !empty($data['expires_at']) ? Carbon::parse($data['expires_at']) : null,
                 'max_uses' => $data['max_uses'] ?? null,
                 'is_reusable' => $data['is_reusable'] ?? false,
                 'is_public' => $isPublic,
@@ -368,9 +368,9 @@ class UniversalPaymentLinkService
                 'total_amount' => $totalPaymentAmount,
                 'mobile_network' => $transactionData['mobile_network'],
                 'items_count' => count($processedItems),
-                'callback_url_being_sent_to_tembo' => $transactionData['webhook_url'],
-                'original_client_webhook_url' => $paymentLink->webhook_url,
-                'callback_url_explanation' => 'Tembo Plus will send payment status updates to this URL'
+                'aggregator_callback_url' => $transactionData['webhook_url'],
+                'client_webhook_url' => $paymentLink->webhook_url,
+                'note' => 'Aggregator callback URL is for Tembo to call us; client webhook URL is for us to notify the client'
             ]);
 
             // Process through ESB
@@ -584,7 +584,8 @@ class UniversalPaymentLinkService
             'narration' => $paymentLink->narration,
             'request_data' => $transactionData,
             'status' => 'pending',
-            'webhook_url' => $transactionData['webhook_url'],
+            // Use client's webhook URL for notifications, not the internal callback URL
+            'webhook_url' => $paymentLink->webhook_url,
             'metadata' => $transactionData['metadata'] ?? [],
         ]);
     }
