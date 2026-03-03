@@ -148,30 +148,36 @@ class ServiceMapping extends Model
                 }
             }
         } else {
-            // If no request mapping is configured, use default Tembo format
-            // Check if this is a statement service (has startDate/endDate)
+            $aggregatorCode = strtoupper($this->aggregator->code ?? '');
+            $isSelcom = $aggregatorCode === 'SELCOM';
+
             if (isset($clientRequest['startDate']) || isset($clientRequest['endDate'])) {
                 $transformed = [
                     'startDate' => $clientRequest['startDate'] ?? null,
                     'endDate' => $clientRequest['endDate'] ?? null
                 ];
-            } 
-            // Check if this is a status service (has reference for status check)
-            elseif (isset($clientRequest['reference']) && !isset($clientRequest['amount'])) {
-                $transformed = [
-                    'transactionId' => $clientRequest['reference'] ?? null
-                ];
+            } elseif (isset($clientRequest['reference']) && !isset($clientRequest['amount'])) {
+                $transformed = $isSelcom
+                    ? ['transid' => $clientRequest['transaction_id'] ?? null, 'reference' => $clientRequest['reference'] ?? null]
+                    : ['transactionId' => $clientRequest['reference'] ?? null];
             } else {
-                // Default collection format for Tembo Plus
-                $transformed = [
-                    'channel' => $clientRequest['mobile_network'] ?? null,
-                    'msisdn' => $clientRequest['customer_phone'] ?? null,
-                    'amount' => $clientRequest['amount'] ?? null,
-                    'reference' => $clientRequest['reference'] ?? null,
-                    'narration' => $clientRequest['description'] ?? null,
-                    'transactionDate' => $clientRequest['date'] ?? null,
-                    'callbackUrl' => $clientRequest['webhook_url'] ?? null
-                ];
+                if ($isSelcom) {
+                    $transformed = [
+                        'msisdn' => $clientRequest['customer_phone'] ?? null,
+                        'utilityref' => $clientRequest['reference'] ?? null,
+                        'amount' => $clientRequest['amount'] ?? null,
+                    ];
+                } else {
+                    $transformed = [
+                        'channel' => $clientRequest['mobile_network'] ?? null,
+                        'msisdn' => $clientRequest['customer_phone'] ?? null,
+                        'amount' => $clientRequest['amount'] ?? null,
+                        'reference' => $clientRequest['reference'] ?? null,
+                        'narration' => $clientRequest['description'] ?? null,
+                        'transactionDate' => $clientRequest['date'] ?? null,
+                        'callbackUrl' => $clientRequest['webhook_url'] ?? null
+                    ];
+                }
             }
         }
         
@@ -217,9 +223,20 @@ class ServiceMapping extends Model
             }
         }
         
+        // Selcom uses result/resultcode; Tembo uses statusCode
+        $status = $aggregatorResponse['result'] ?? $aggregatorResponse['statusCode'] ?? $aggregatorResponse['status'] ?? 'success';
+        $resultCode = $aggregatorResponse['resultcode'] ?? $aggregatorResponse['statusCode'] ?? null;
+        if ($resultCode === '000') {
+            $status = 'success';
+        } elseif (in_array($resultCode, ['111', '927'])) {
+            $status = 'pending';
+        } elseif ($resultCode && $resultCode !== '000') {
+            $status = 'failed';
+        }
+
         // Enhanced response with comprehensive transaction details
         $transformed = array_merge($transformed, [
-            'status' => $aggregatorResponse['statusCode'] ?? $aggregatorResponse['status'] ?? 'success',
+            'status' => $status,
             'message' => $aggregatorResponse['message'] ?? 'Transaction processed successfully',
             'transaction_id' => $aggregatorResponse['transactionId'] ?? $aggregatorResponse['transaction_id'] ?? null,
             'reference' => $aggregatorResponse['reference'] ?? $aggregatorResponse['transactionRef'] ?? null,

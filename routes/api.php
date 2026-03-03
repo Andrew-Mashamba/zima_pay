@@ -33,6 +33,13 @@ Route::prefix('callback')->group(function () {
     Route::get('/status/{transactionId}', [App\Http\Controllers\Api\CallbackController::class, 'checkStatus'])->name('api.callback.status');
 });
 
+// Selcom C2B endpoints (Selcom calls these - register URL with Selcom)
+Route::prefix('selcom/c2b')->group(function () {
+    Route::post('/lookup', [App\Http\Controllers\Api\SelcomC2bController::class, 'lookup']);
+    Route::post('/validation', [App\Http\Controllers\Api\SelcomC2bController::class, 'validation']);
+    Route::post('/notification', [App\Http\Controllers\Api\SelcomC2bController::class, 'notification']);
+});
+
 // Universal Payment Link API Routes
 Route::prefix('payment-links')->group(function () {
     Route::post('/generate-universal', [UniversalPaymentLinkController::class, 'generateUniversal']);

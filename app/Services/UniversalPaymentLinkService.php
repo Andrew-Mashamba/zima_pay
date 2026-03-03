@@ -331,8 +331,11 @@ class UniversalPaymentLinkService
             // Create transaction data with unique reference
             $uniqueReference = $paymentLink->client_reference . '_' . time() . '_' . Str::random(6);
             
-            // Generate the callback URL that Tembo Plus should use
-            $callbackUrl = url('/api/callback/TEMBO');
+            // Callback URL for aggregator (Tembo-style). Selcom uses C2B notification endpoint instead.
+            $aggregatorCode = $paymentLink->serviceMapping?->aggregator?->code ?? 'SELCOM';
+            $callbackUrl = $aggregatorCode === 'SELCOM'
+                ? url('/api/selcom/c2b/notification')
+                : url('/api/callback/' . $aggregatorCode);
             
             $transactionData = [
                 'customer_phone' => $paymentData['customer_phone'],
@@ -370,15 +373,16 @@ class UniversalPaymentLinkService
                 'items_count' => count($processedItems),
                 'aggregator_callback_url' => $transactionData['webhook_url'],
                 'client_webhook_url' => $paymentLink->webhook_url,
-                'note' => 'Aggregator callback URL is for Tembo to call us; client webhook URL is for us to notify the client'
+                'note' => 'Aggregator callback URL; Selcom uses C2B notification; client webhook for client notification'
             ]);
 
             // Process through ESB
             $esbService = new EsbService();
+            $transaction = $this->createTransaction($paymentLink, $transactionData);
             $result = $esbService->processRequest(
                 $paymentLink->serviceMapping,
                 $transactionData,
-                $this->createTransaction($paymentLink, $transactionData)
+                $transaction
             );
 
             // Log ESB processing result
@@ -391,7 +395,7 @@ class UniversalPaymentLinkService
                 'error' => $result['error'] ?? null
             ]);
 
-            // If successful, record payments for items
+            // If successful, record payments for items (C2B notification will skip if this ran)
             if ($result['success']) {
                 foreach ($processedItems as $itemPayment) {
                     $itemPayment['item']->recordPayment($itemPayment['amount']);
@@ -405,6 +409,10 @@ class UniversalPaymentLinkService
                 
                 $paymentLink->incrementUses();
                 
+                $meta = $transaction->metadata ?? [];
+                $meta['payment_link_updated'] = true;
+                $transaction->update(['metadata' => $meta]);
+
                 Log::info('Payment link usage incremented', [
                     'link_id' => $paymentLink->link_id,
                     'new_uses' => $paymentLink->current_uses + 1

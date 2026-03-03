@@ -16,11 +16,11 @@ class ServicesSeeder extends Seeder
         $services = [
             [
                 'id' => 1,
-                'name' => 'Mobile Money Collection',
+                'name' => 'Wallet Pull Funds (Push USSD)',
                 'code' => 'MONEY_COLLECTION',
-                'description' => 'Collect money from mobile subscribers through USSD push requests',
+                'description' => 'Trigger USSD push to customer wallet for payment collection',
                 'aggregator_id' => 1,
-                'endpoint' => '/collection',
+                'endpoint' => '/v1/wallet/pushussd',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -29,31 +29,21 @@ class ServicesSeeder extends Seeder
                 'retry_attempts' => 3,
                 'status' => 1,
                 'settings' => json_encode([
-                    'required_fields' => [
-                        'msisdn',
-                        'channel',
-                        'amount',
-                        'narration',
-                        'transactionRef',
-                        'transactionDate',
-                        'callbackUrl'
-                    ],
-                    'supported_channels' => [
-                        'TZ-TIGO-C2B',
-                        'TZ-AIRTEL-C2B'
-                    ]
+                    'required_fields' => ['transid', 'utilityref', 'amount', 'vendor', 'msisdn'],
+                    'signed_fields' => 'transid,utilityref,amount,vendor,msisdn',
+                    'supported_wallets' => ['AIRTELMONEY', 'MPESA-TZ', 'TIGOPESATZ', 'HALOPESATZ', 'TTCLMOBILE', 'ZANTELEZPESA'],
                 ]),
-                'documentation' => 'Collect money from a mobile subscriber through a USSD push request. Supports TZ-TIGO-C2B and TZ-AIRTEL-C2B channels.',
-                'created_at' => '2025-07-20 11:49:12',
-                'updated_at' => '2025-07-20 11:49:12'
+                'documentation' => 'Selcom Push USSD - Completion notified via C2B notification.',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'id' => 2,
-                'name' => 'Collection Balance',
+                'name' => 'Float Account Balance',
                 'code' => 'COLLECTION_BALANCE',
-                'description' => 'Retrieve the balance of your collection account',
+                'description' => 'Get float account balance',
                 'aggregator_id' => 1,
-                'endpoint' => '/wallet/collection-balance',
+                'endpoint' => '/v1/vendor/balance',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -62,62 +52,40 @@ class ServicesSeeder extends Seeder
                 'retry_attempts' => 3,
                 'status' => 1,
                 'settings' => json_encode([
-                    'required_fields' => [],
-                    'response_fields' => [
-                        'availableBalance',
-                        'currentBalance',
-                        'accountNo',
-                        'accountStatus',
-                        'accountName'
-                    ]
+                    'required_fields' => ['vendor', 'pin', 'transid'],
+                    'signed_fields' => 'vendor,pin,transid',
                 ]),
-                'documentation' => 'Retrieves the balance of your collection account including available balance, current balance, account number, and account status.',
-                'created_at' => '2025-07-20 11:49:12',
-                'updated_at' => '2025-07-20 11:49:12'
+                'documentation' => 'Get available balance from Selcom float account.',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'id' => 3,
                 'name' => 'Collection Statement',
                 'code' => 'COLLECTION_STATEMENT',
-                'description' => 'Retrieve the statement of your collection account',
+                'description' => 'Not supported by Selcom - kept for compatibility',
                 'aggregator_id' => 1,
-                'endpoint' => '/wallet/collection-statement',
+                'endpoint' => '/v1/wallet/collection-statement',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
                 'rate_limit' => 30,
                 'timeout' => 30,
                 'retry_attempts' => 3,
-                'status' => 1,
-                'settings' => json_encode([
-                    'required_fields' => [
-                        'startDate',
-                        'endDate'
-                    ],
-                    'response_fields' => [
-                        'accountNo',
-                        'debitOrCredit',
-                        'tranRefNo',
-                        'narration',
-                        'txnDate',
-                        'valueDate',
-                        'amountCredited',
-                        'amountDebited',
-                        'balance'
-                    ]
-                ]),
-                'documentation' => 'Check the account statement of your collection account for a specified date range.',
-                'created_at' => '2025-07-20 11:49:12',
-                'updated_at' => '2025-07-20 11:49:12'
+                'status' => 0,
+                'settings' => json_encode(['supported' => false]),
+                'documentation' => 'Selcom does not provide collection statement API.',
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'id' => 4,
-                'name' => 'Payment Status',
+                'name' => 'C2B Transaction Status',
                 'code' => 'PAYMENT_STATUS',
-                'description' => 'Check the current status of a USSD push transaction',
+                'description' => 'Query C2B transaction status',
                 'aggregator_id' => 1,
-                'endpoint' => '/collection/status',
-                'method' => 'POST',
+                'endpoint' => '/v1/c2b/query-status',
+                'method' => 'GET',
                 'request_format' => 'json',
                 'response_format' => 'json',
                 'rate_limit' => 100,
@@ -125,20 +93,14 @@ class ServicesSeeder extends Seeder
                 'retry_attempts' => 3,
                 'status' => 1,
                 'settings' => json_encode([
-                    'required_fields' => [
-                        'transactionId',
-                        'transactionRef'
-                    ],
-                    'response_fields' => [
-                        'statusCode',
-                        'transactionId',
-                        'transactionRef'
-                    ]
+                    'required_fields' => ['transid', 'reference'],
+                    'signed_fields' => 'transid,reference',
+                    'query_params' => true,
                 ]),
-                'documentation' => 'Checks the current status of a USSD push transaction using transaction ID and reference.',
-                'created_at' => '2025-07-20 11:49:12',
-                'updated_at' => '2025-07-20 11:49:12'
-            ]
+                'documentation' => 'Check C2B transaction status using transid or reference.',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ];
 
         // Insert new data
@@ -146,8 +108,9 @@ class ServicesSeeder extends Seeder
             DB::table('services')->insert($service);
         }
 
-        // Reset PostgreSQL sequence for services table
-        DB::statement("SELECT setval('services_id_seq', (SELECT MAX(id) FROM services))");
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("SELECT setval('services_id_seq', (SELECT MAX(id) FROM services))");
+        }
 
         $this->command->info('Services seeded successfully!');
         $this->command->info('Created ' . count($services) . ' services:');

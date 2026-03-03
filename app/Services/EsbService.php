@@ -147,7 +147,12 @@ class EsbService
     {
         $service = $serviceMapping->service;
         $aggregator = $serviceMapping->aggregator;
-        
+        $settings = is_array($aggregator->settings) ? $aggregator->settings : [];
+
+        // Selcom uses different auth (Digest) - see wallet-pull-funds-push-ussd.md
+        $isSelcom = ($settings['auth_type'] ?? null) === 'selcom_digest'
+            || strtoupper($aggregator->code ?? '') === 'SELCOM';
+
         $request = [
             'url' => $aggregator->api_endpoint . $service->endpoint,
             'method' => $service->method,
@@ -158,36 +163,81 @@ class EsbService
             ],
             'timeout' => $service->timeout ?? 30,
         ];
-        
-        // Add aggregator authentication
-        if ($aggregator->api_key) {
-            $request['headers']['x-account-id'] = $aggregator->api_key;
+
+        if ($isSelcom) {
+            $settings = is_array($aggregator->settings) ? $aggregator->settings : [];
+            $vendor = $settings['vendor'] ?? env('SELCOM_VENDOR_ID', '01234567891');
+            $transformedData['vendor'] = $transformedData['vendor'] ?? $vendor;
+            $transformedData['transid'] = $transformedData['transid'] ?? ('TXN-' . time() . '-' . Str::random(6));
+            $request = $this->addSelcomAuth($request, $aggregator, $service, $transformedData);
+        } else {
+            // Tembo-style auth (x-account-id, x-secret-key)
+            if ($aggregator->api_key) {
+                $request['headers']['x-account-id'] = $aggregator->api_key;
+            }
+            if ($aggregator->api_secret) {
+                $request['headers']['x-secret-key'] = $aggregator->api_secret;
+            }
         }
-        
-        if ($aggregator->api_secret) {
-            $request['headers']['x-secret-key'] = $aggregator->api_secret;
-        }
-        
-        // Add unique request ID
+
         $request['headers']['x-request-id'] = uniqid();
-        
-        // Add custom headers from settings (avoid duplicates)
+
         if ($aggregator->settings && isset($aggregator->settings['headers'])) {
             foreach ($aggregator->settings['headers'] as $key => $value) {
-                // Skip content-type as it's already set
                 if (strtolower($key) !== 'content-type') {
                     $request['headers'][$key] = $value;
                 }
             }
         }
-        
-        // Prepare request body
+
         if (in_array($service->method, ['POST', 'PUT', 'PATCH'])) {
             $request['data'] = $transformedData;
         } else {
             $request['params'] = $transformedData;
+            if ($isSelcom && ($service->settings['query_params'] ?? false)) {
+                $request['url'] = $request['url'] . '?' . http_build_query(array_filter($transformedData));
+                $request['params'] = [];
+            }
         }
-        
+
+        return $request;
+    }
+
+    /**
+     * Add Selcom Digest authentication (HMAC-SHA256)
+     * Digest = Base64(HMAC-SHA256(timestamp=...&field1=value1&..., api_secret))
+     */
+    protected function addSelcomAuth(array $request, $aggregator, $service, array $data): array
+    {
+        $timestamp = now()->format('Y-m-d\TH:i:sP');
+        $settings = is_array($aggregator->settings) ? $aggregator->settings : [];
+        $vendor = $settings['vendor'] ?? $aggregator->api_key;
+
+        $request['headers']['Authorization'] = 'SELCOM ' . base64_encode($aggregator->api_key);
+        $request['headers']['Timestamp'] = $timestamp;
+        $request['headers']['Digest-Method'] = 'HS256';
+
+        $serviceSettings = is_array($service->settings) ? $service->settings : [];
+        $signedFields = $serviceSettings['signed_fields'] ?? 'transid,utilityref,amount,vendor,msisdn';
+
+        if ($service->method === 'GET' && ($serviceSettings['query_params'] ?? false)) {
+            $signedFields = $serviceSettings['signed_fields'] ?? 'transid,reference';
+        }
+
+        $parts = ['timestamp=' . $timestamp];
+        foreach (explode(',', $signedFields) as $field) {
+            $field = trim($field);
+            $value = $data[$field] ?? null;
+            if ($value !== null) {
+                $parts[] = $field . '=' . $value;
+            }
+        }
+        $signString = implode('&', $parts);
+        $digest = base64_encode(hash_hmac('sha256', $signString, $aggregator->api_secret, true));
+
+        $request['headers']['Digest'] = $digest;
+        $request['headers']['Signed-Fields'] = $signedFields;
+
         return $request;
     }
     
