@@ -72,31 +72,46 @@ class Dashboard extends Component
 
     public function getTopClientsProperty()
     {
+        $transactionStats = DB::table('transactions')
+            ->select(
+                'client_id',
+                DB::raw('COUNT(id) as transactions_count'),
+                DB::raw('COALESCE(SUM(amount), 0) as total_volume')
+            )
+            ->groupBy('client_id');
+
         return DB::table('clients')
-            ->leftJoin('transactions', 'clients.id', '=', 'transactions.client_id')
+            ->leftJoinSub($transactionStats, 'stats', 'clients.id', '=', 'stats.client_id')
             ->select(
                 'clients.*',
-                DB::raw('COUNT(transactions.id) as transactions_count'),
-                DB::raw('COALESCE(SUM(transactions.amount), 0) as total_volume')
+                DB::raw('COALESCE(stats.transactions_count, 0) as transactions_count'),
+                DB::raw('COALESCE(stats.total_volume, 0) as total_volume')
             )
-            ->groupBy('clients.id', 'clients.name', 'clients.status', 'clients.created_at', 'clients.updated_at')
-            ->orderBy('transactions_count', 'desc')
+            ->orderByDesc('transactions_count')
             ->limit(5)
             ->get();
     }
 
     public function getTopAggregatorsProperty()
     {
+        $transactionStats = DB::table('transactions')
+            ->select(
+                'aggregator_id',
+                DB::raw('COUNT(id) as transactions_count'),
+                DB::raw('COALESCE(SUM(amount), 0) as total_volume'),
+                DB::raw('AVG(response_time) as avg_response_time')
+            )
+            ->groupBy('aggregator_id');
+
         return DB::table('aggregators')
-            ->leftJoin('transactions', 'aggregators.id', '=', 'transactions.aggregator_id')
+            ->leftJoinSub($transactionStats, 'stats', 'aggregators.id', '=', 'stats.aggregator_id')
             ->select(
                 'aggregators.*',
-                DB::raw('COUNT(transactions.id) as transactions_count'),
-                DB::raw('COALESCE(SUM(transactions.amount), 0) as total_volume'),
-                DB::raw('AVG(transactions.response_time) as avg_response_time')
+                DB::raw('COALESCE(stats.transactions_count, 0) as transactions_count'),
+                DB::raw('COALESCE(stats.total_volume, 0) as total_volume'),
+                DB::raw('stats.avg_response_time as avg_response_time')
             )
-            ->groupBy('aggregators.id', 'aggregators.name', 'aggregators.code', 'aggregators.status', 'aggregators.created_at', 'aggregators.updated_at')
-            ->orderBy('transactions_count', 'desc')
+            ->orderByDesc('transactions_count')
             ->limit(5)
             ->get();
     }

@@ -206,8 +206,16 @@ class PaymentLinksSeeder extends Seeder
             ],
         ];
 
-        // Clear existing data
-        DB::table('payment_links')->truncate();
+        // Clear existing data (disable FK checks so truncate works when other tables reference payment_links)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            DB::table('payment_links')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        } elseif (DB::getDriverName() === 'pgsql') {
+            DB::statement('TRUNCATE payment_links CASCADE');
+        } else {
+            DB::table('payment_links')->truncate();
+        }
 
         // Insert new data
         foreach ($paymentLinks as $link) {

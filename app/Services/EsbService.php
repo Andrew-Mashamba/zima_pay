@@ -68,7 +68,10 @@ class EsbService
             
             // 4. Transform response back to client format
             $transformedResponse = $this->transformAggregatorResponse($serviceMapping, $aggregatorResponse['data']);
-            
+
+            // Fill response with request values when aggregator does not return them (e.g. Tembo omits amount)
+            $transformedResponse = $this->fillResponseFromRequest($transformedResponse, $requestData);
+
             // 5. Calculate response time
             $responseTime = microtime(true) - $startTime;
             
@@ -149,9 +152,12 @@ class EsbService
         $aggregator = $serviceMapping->aggregator;
         $settings = is_array($aggregator->settings) ? $aggregator->settings : [];
 
-        // Selcom uses different auth (Digest) - see wallet-pull-funds-push-ussd.md
-        $isSelcom = ($settings['auth_type'] ?? null) === 'selcom_digest'
-            || strtoupper($aggregator->code ?? '') === 'SELCOM';
+        // Tembo uses x-account-id / x-secret-key; Selcom uses Digest - see wallet-pull-funds-push-ussd.md
+        $isTembo = strtoupper($aggregator->code ?? '') === 'TEMBO';
+        $isSelcom = !$isTembo && (
+            ($settings['auth_type'] ?? null) === 'selcom_digest'
+            || strtoupper($aggregator->code ?? '') === 'SELCOM'
+        );
 
         $request = [
             'url' => $aggregator->api_endpoint . $service->endpoint,
@@ -164,14 +170,22 @@ class EsbService
             'timeout' => $service->timeout ?? 30,
         ];
 
-        if ($isSelcom) {
+        if ($isTembo) {
+            // Tembo-style auth (x-account-id, x-secret-key) per TEMBO_API_TESTING.md
+            if ($aggregator->api_key) {
+                $request['headers']['x-account-id'] = $aggregator->api_key;
+            }
+            if ($aggregator->api_secret) {
+                $request['headers']['x-secret-key'] = $aggregator->api_secret;
+            }
+        } elseif ($isSelcom) {
             $settings = is_array($aggregator->settings) ? $aggregator->settings : [];
             $vendor = $settings['vendor'] ?? env('SELCOM_VENDOR_ID', '01234567891');
             $transformedData['vendor'] = $transformedData['vendor'] ?? $vendor;
             $transformedData['transid'] = $transformedData['transid'] ?? ('TXN-' . time() . '-' . Str::random(6));
             $request = $this->addSelcomAuth($request, $aggregator, $service, $transformedData);
         } else {
-            // Tembo-style auth (x-account-id, x-secret-key)
+            // Other aggregators: fallback to x-account-id / x-secret-key if present
             if ($aggregator->api_key) {
                 $request['headers']['x-account-id'] = $aggregator->api_key;
             }
@@ -543,6 +557,29 @@ class EsbService
         
         // Default transformation for single transaction responses
         return $serviceMapping->transformResponse($aggregatorResponse);
+    }
+
+    /**
+     * Fill response fields from request when aggregator does not return them (e.g. Tembo omits amount).
+     */
+    protected function fillResponseFromRequest(array $response, array $requestData): array
+    {
+        if (($response['amount'] ?? null) === null && isset($requestData['amount'])) {
+            $response['amount'] = $requestData['amount'];
+        }
+        if (($response['currency'] ?? null) === null && isset($requestData['currency'])) {
+            $response['currency'] = $requestData['currency'];
+        }
+        if (($response['customer_phone'] ?? null) === null && isset($requestData['customer_phone'])) {
+            $response['customer_phone'] = $requestData['customer_phone'];
+        }
+        if (($response['mobile_network'] ?? null) === null && isset($requestData['mobile_network'])) {
+            $response['mobile_network'] = $requestData['mobile_network'];
+        }
+        if (($response['description'] ?? null) === null && isset($requestData['description'])) {
+            $response['description'] = $requestData['description'];
+        }
+        return $response;
     }
     
     /**

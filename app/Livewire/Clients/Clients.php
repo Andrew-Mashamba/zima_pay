@@ -267,7 +267,7 @@ class Clients extends Component
                     $q->where('name', 'like', '%' . $this->search . '%')
                       ->orWhere('code', 'like', '%' . $this->search . '%')
                       ->orWhere('contact_person', 'like', '%' . $this->search . '%')
-                      ->orWhere('email', 'like', '%' . $this->search . '%');
+                      ->orWhere('contact_email', 'like', '%' . $this->search . '%');
                 });
             })
             ->when($this->statusFilter !== '', function ($query) {

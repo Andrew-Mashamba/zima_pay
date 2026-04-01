@@ -205,6 +205,23 @@ class ServiceMapping extends Model
                 }
             }
         }
+
+        // TEMBO /collection requires: channel, narration, reference (transactionRef), transactionDate, callbackUrl; amount >= 1000
+        // Tembo channel must be one of: TZ-TIGO-C2B, TZ-VODACOM-C2B, TZ-AIRTEL-C2B, TZ-HALOTEL-C2B
+        $isTembo = strtoupper($this->aggregator->code ?? '') === 'TEMBO';
+        if ($isTembo && isset($transformed['msisdn']) && isset($transformed['amount'])) {
+            $channel = $transformed['channel'] ?? $clientRequest['mobile_network'] ?? 'TZ-VODACOM-C2B';
+            $transformed['channel'] = $channel === 'TZ-MPESA-C2B' ? 'TZ-VODACOM-C2B' : $channel;
+            $transformed['narration'] = $transformed['narration'] ?? $clientRequest['description'] ?? 'Payment';
+            $transformed['transactionRef'] = $transformed['transactionRef'] ?? $transformed['utilityref'] ?? $clientRequest['reference'] ?? null;
+            $transformed['reference'] = $transformed['reference'] ?? $transformed['transactionRef'];
+            $transformed['transactionDate'] = $transformed['transactionDate'] ?? $clientRequest['date'] ?? now()->format('Y-m-d H:i:s');
+            $transformed['callbackUrl'] = $transformed['callbackUrl'] ?? $clientRequest['webhook_url'] ?? null;
+            if (isset($transformed['utilityref']) && !isset($transformed['transactionRef'])) {
+                $transformed['transactionRef'] = $transformed['utilityref'];
+            }
+            unset($transformed['utilityref']);
+        }
         
         return $transformed;
     }
@@ -223,21 +240,49 @@ class ServiceMapping extends Model
             }
         }
         
-        // Selcom uses result/resultcode; Tembo uses statusCode
+        // Selcom uses result/resultcode; Tembo uses statusCode (string e.g. PENDING_ACK, PAYMENT_ACCEPTED)
         $status = $aggregatorResponse['result'] ?? $aggregatorResponse['statusCode'] ?? $aggregatorResponse['status'] ?? 'success';
         $resultCode = $aggregatorResponse['resultcode'] ?? $aggregatorResponse['statusCode'] ?? null;
-        if ($resultCode === '000') {
-            $status = 'success';
-        } elseif (in_array($resultCode, ['111', '927'])) {
-            $status = 'pending';
-        } elseif ($resultCode && $resultCode !== '000') {
-            $status = 'failed';
+        $isTembo = strtoupper($this->aggregator->code ?? '') === 'TEMBO';
+
+        if ($isTembo && is_string($resultCode)) {
+            // Tembo: statusCode values like PENDING_ACK, PAYMENT_ACCEPTED, SUCCESS
+            $temboStatus = strtoupper((string) $resultCode);
+            if (in_array($temboStatus, ['PAYMENT_ACCEPTED', 'SUCCESS', 'COMPLETED'])) {
+                $status = 'success';
+            } elseif (in_array($temboStatus, ['PENDING_ACK', 'PENDING', 'ACCEPTED'])) {
+                $status = 'pending';
+            } elseif (in_array($temboStatus, ['FAILED', 'REJECTED', 'CANCELLED', 'ERROR', 'PROVIDER_FAILED'])) {
+                $status = 'failed';
+            }
+        } else {
+            // Selcom-style numeric resultcode
+            if ($resultCode === '000') {
+                $status = 'success';
+            } elseif (in_array($resultCode, ['111', '927'])) {
+                $status = 'pending';
+            } elseif ($resultCode && $resultCode !== '000') {
+                $status = 'failed';
+            }
         }
+
+        // User-friendly message when Tembo reports failure (e.g. PROVIDER_FAILED = customer/mobile network did not complete)
+        $statusCode = $aggregatorResponse['statusCode'] ?? null;
+        $message = $aggregatorResponse['message'] ?? null;
+        if ($message === null && $status === 'failed' && is_string($statusCode)) {
+            $message = match (strtoupper($statusCode)) {
+                'PROVIDER_FAILED' => 'Payment was not completed by the mobile network or customer (e.g. cancelled, timeout, or insufficient balance).',
+                'REJECTED', 'CANCELLED' => 'Payment was cancelled or rejected.',
+                'FAILED', 'ERROR' => 'Payment could not be completed.',
+                default => 'Transaction processed successfully',
+            };
+        }
+        $message = $message ?? 'Transaction processed successfully';
 
         // Enhanced response with comprehensive transaction details
         $transformed = array_merge($transformed, [
             'status' => $status,
-            'message' => $aggregatorResponse['message'] ?? 'Transaction processed successfully',
+            'message' => $message,
             'transaction_id' => $aggregatorResponse['transactionId'] ?? $aggregatorResponse['transaction_id'] ?? null,
             'reference' => $aggregatorResponse['reference'] ?? $aggregatorResponse['transactionRef'] ?? null,
             'amount' => $aggregatorResponse['amount'] ?? null,
@@ -245,7 +290,7 @@ class ServiceMapping extends Model
             'customer_phone' => $aggregatorResponse['customerPhone'] ?? $aggregatorResponse['msisdn'] ?? null,
             'mobile_network' => $aggregatorResponse['mobileNetwork'] ?? $aggregatorResponse['channel'] ?? null,
             'description' => $aggregatorResponse['description'] ?? $aggregatorResponse['narration'] ?? null,
-            'aggregator_status' => $aggregatorResponse['aggregatorStatus'] ?? 'success',
+            'aggregator_status' => $aggregatorResponse['aggregatorStatus'] ?? ($status === 'failed' ? 'failed' : 'success'),
             'processing_time' => $aggregatorResponse['processingTime'] ?? null,
             'timestamp' => $aggregatorResponse['timestamp'] ?? now()->toISOString(),
             'webhook_sent' => $aggregatorResponse['webhookSent'] ?? false,

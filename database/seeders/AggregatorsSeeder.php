@@ -41,8 +41,16 @@ class AggregatorsSeeder extends Seeder
             ],
         ];
 
-        // Clear existing data
-        DB::table('aggregators')->truncate();
+        // Clear existing data (disable FK checks so truncate works when other tables reference aggregators)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            DB::table('aggregators')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        } elseif (DB::getDriverName() === 'pgsql') {
+            DB::statement('TRUNCATE aggregators CASCADE');
+        } else {
+            DB::table('aggregators')->truncate();
+        }
 
         // Insert new data
         foreach ($aggregators as $aggregator) {

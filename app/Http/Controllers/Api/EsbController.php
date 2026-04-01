@@ -371,7 +371,7 @@ class EsbController extends Controller
 
         // Get services directly through client-service relationship
         $services = $client->services()
-                          ->where('status', true)
+                          ->where('services.status', true)
                           ->get()
                           ->map(function ($service) {
                               return [

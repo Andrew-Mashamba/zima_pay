@@ -56,8 +56,16 @@ class ClientServiceSeeder extends Seeder
             ],
         ];
 
-        // Clear existing data
-        DB::table('client_service')->truncate();
+        // Clear existing data (disable FK checks so truncate works when other tables reference client_service)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            DB::table('client_service')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        } elseif (DB::getDriverName() === 'pgsql') {
+            DB::statement('TRUNCATE client_service CASCADE');
+        } else {
+            DB::table('client_service')->truncate();
+        }
 
         // Insert new data
         foreach ($clientServices as $clientService) {

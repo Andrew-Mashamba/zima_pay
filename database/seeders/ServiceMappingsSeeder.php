@@ -112,8 +112,16 @@ class ServiceMappingsSeeder extends Seeder
             ],
         ];
 
-        // Clear existing data
-        DB::table('service_mappings')->truncate();
+        // Clear existing data (disable FK checks so truncate works when other tables reference service_mappings)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            DB::table('service_mappings')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        } elseif (DB::getDriverName() === 'pgsql') {
+            DB::statement('TRUNCATE service_mappings CASCADE');
+        } else {
+            DB::table('service_mappings')->truncate();
+        }
 
         // Insert new data
         foreach ($serviceMappings as $mapping) {

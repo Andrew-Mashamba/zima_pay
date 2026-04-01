@@ -67,8 +67,16 @@ class ClientsSeeder extends Seeder
             ],
         ];
 
-        // Clear existing data
-        DB::table('clients')->truncate();
+        // Clear existing data (disable FK checks so truncate works when other tables reference clients)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            DB::table('clients')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        } elseif (DB::getDriverName() === 'pgsql') {
+            DB::statement('TRUNCATE clients CASCADE');
+        } else {
+            DB::table('clients')->truncate();
+        }
 
         // Insert new data
         foreach ($clients as $client) {

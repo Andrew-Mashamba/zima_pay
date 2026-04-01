@@ -26,8 +26,16 @@ class ClientAggregatorSeeder extends Seeder
             ],
         ];
 
-        // Clear existing data
-        DB::table('client_aggregator')->truncate();
+        // Clear existing data (disable FK checks so truncate works when other tables reference client_aggregator)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            DB::table('client_aggregator')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        } elseif (DB::getDriverName() === 'pgsql') {
+            DB::statement('TRUNCATE client_aggregator CASCADE');
+        } else {
+            DB::table('client_aggregator')->truncate();
+        }
 
         // Insert new data
         foreach ($clientAggregators as $clientAggregator) {
