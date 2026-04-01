@@ -1,0 +1,185 @@
+{
+  "info": {
+    "_postman_id": "8c7c2f5b-2e3d-4a95-9ea0-55f6e4f2f9b1",
+    "name": "ZimaPay Pay-By-Link (Live Server)",
+    "description": "Postman collection for generating universal pay-by-link on the live server.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Generate Individual Pay Link",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}"
+          },
+          {
+            "key": "X-API-Secret",
+            "value": "{{api_secret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Invoice Payment - April\",\n  \"target\": \"individual\",\n  \"customer_reference\": \"INV_2026_0001\",\n  \"customer_name\": \"John Doe\",\n  \"customer_phone\": \"255712345678\",\n  \"customer_email\": \"john@example.com\",\n  \"currency\": \"TZS\",\n  \"items\": [\n    {\n      \"type\": \"service\",\n      \"product_service_reference\": \"INV_LINE_001\",\n      \"product_service_name\": \"Consulting Service\",\n      \"amount\": 25000,\n      \"is_required\": true,\n      \"allow_partial\": false\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payment-links/generate-universal",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payment-links",
+            "generate-universal"
+          ]
+        },
+        "description": "Create an individual universal payment link."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "let res = {};",
+              "try {",
+              "  res = pm.response.json();",
+              "} catch (e) {}",
+              "",
+              "if (res && res.data && res.data.short_code) {",
+              "  pm.collectionVariables.set('short_code', res.data.short_code);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Generate Public Pay Link",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}"
+          },
+          {
+            "key": "X-API-Secret",
+            "value": "{{api_secret}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Community Fundraiser\",\n  \"target\": \"public\",\n  \"customer_reference\": \"FUND_2026_01\",\n  \"currency\": \"TZS\",\n  \"items\": [\n    {\n      \"type\": \"service\",\n      \"product_service_reference\": \"DONATE_GENERAL\",\n      \"product_service_name\": \"General Donation\",\n      \"amount\": 10000,\n      \"is_required\": false,\n      \"allow_partial\": true,\n      \"minimum_amount\": 1000\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payment-links/generate-universal",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payment-links",
+            "generate-universal"
+          ]
+        },
+        "description": "Create a public universal payment link."
+      }
+    },
+    {
+      "name": "Get Pay Link Details",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payment-links/universal/{{short_code}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payment-links",
+            "universal",
+            "{{short_code}}"
+          ]
+        },
+        "description": "Fetch details for a generated pay link using short code."
+      }
+    },
+    {
+      "name": "Get Pay Link Stats",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}"
+          },
+          {
+            "key": "X-API-Secret",
+            "value": "{{api_secret}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/payment-links/universal/{{short_code}}/stats",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payment-links",
+            "universal",
+            "{{short_code}}",
+            "stats"
+          ]
+        },
+        "description": "Fetch payment link statistics for the generated short code."
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://197.250.35.61:8085/api"
+    },
+    {
+      "key": "api_key",
+      "value": "sample_client_key_ABC123DEF456"
+    },
+    {
+      "key": "api_secret",
+      "value": "sample_client_secret_XYZ789GHI012"
+    },
+    {
+      "key": "short_code",
+      "value": ""
+    }
+  ]
+}

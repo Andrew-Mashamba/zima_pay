@@ -324,25 +324,39 @@ class UniversalPaymentLinkController extends Controller
     {
         $apiKey = $request->header('X-API-Key');
         $apiSecret = $request->header('X-API-Secret');
+        $envApiKey = env('PAYMENT_GATEWAY_API_KEY');
+        $envApiSecret = env('PAYMENT_GATEWAY_API_SECRET');
 
         Log::debug('Authenticating client', [
             'has_api_key' => isset($apiKey),
-            'has_api_secret' => isset($apiSecret)
+            'has_api_secret' => isset($apiSecret),
+            'has_env_api_key' => !empty($envApiKey),
+            'has_env_api_secret' => !empty($envApiSecret)
         ]);
 
         if (!$apiKey || !$apiSecret) {
             return null;
         }
 
-        $client = Client::where('api_key', $apiKey)
-            ->where('api_secret', $apiSecret)
+        // Authenticate strictly from environment variables as requested.
+        if ($apiKey !== $envApiKey || $apiSecret !== $envApiSecret) {
+            Log::warning('Client credentials do not match environment credentials');
+            return null;
+        }
+
+        // After auth passes, load an active client context for link ownership/service mapping.
+        $client = Client::where('api_key', $envApiKey)
             ->where('status', true)
             ->first();
+
+        if (!$client) {
+            $client = Client::where('status', true)->orderBy('id')->first();
+        }
 
         if ($client) {
             Log::info('Client authenticated', ['client_id' => $client->id]);
         } else {
-            Log::warning('Client credentials invalid or client inactive');
+            Log::warning('Environment credentials matched but no active client was found');
         }
 
         return $client;
