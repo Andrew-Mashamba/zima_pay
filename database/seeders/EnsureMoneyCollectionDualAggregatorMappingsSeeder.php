@@ -8,38 +8,14 @@ use App\Models\Service;
 use App\Models\ServiceMapping;
 use Illuminate\Database\Seeder;
 
-class SampleClientSeeder extends Seeder
+/**
+ * Ensures every client with a MONEY_COLLECTION mapping has both SELCOM (primary) and TEMBO (backup)
+ * mappings when those aggregators and services exist in the database.
+ */
+class EnsureMoneyCollectionDualAggregatorMappingsSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $client = Client::firstOrCreate(
-            ['code' => 'SAMPLE_PAY'],
-            [
-                'name' => 'Sample Payment Gateway',
-                'code' => 'SAMPLE_PAY',
-                'api_key' => 'sample_client_key_ABC123DEF456',
-                'api_secret' => 'sample_client_secret_XYZ789GHI012',
-                'webhook_url' => 'https://webhook.site/sample-client-webhook',
-                'status' => true,
-                'contact_person' => 'John Doe',
-                'contact_email' => 'john.doe@samplepay.com',
-                'contact_phone' => '+255789123456',
-                'description' => 'Sample payment gateway for testing ZIMA ESB integration',
-                'settings' => [
-                    'max_transaction_amount' => 1000000,
-                    'min_transaction_amount' => 100,
-                    'allowed_networks' => ['TZ-AIRTEL-C2B', 'TZ-TIGO-C2B', 'TZ-MPESA-C2B', 'TZ-HALOPESA-C2B'],
-                    'webhook_retry_attempts' => 3,
-                    'webhook_timeout' => 30,
-                    'auto_reconciliation' => true,
-                    'risk_assessment_enabled' => true
-                ]
-            ]
-        );
-
         $selcom = Aggregator::where('code', 'SELCOM')->first();
         $tembo = Aggregator::where('code', 'TEMBO')->first();
 
@@ -50,16 +26,33 @@ class SampleClientSeeder extends Seeder
             ? Service::where('code', 'MONEY_COLLECTION')->where('aggregator_id', $tembo->id)->first()
             : null;
 
-        if ($selcom && $selcomMoney) {
+        if (!$selcom || !$tembo || !$selcomMoney || !$temboMoney) {
+            $this->command->warn(
+                'EnsureMoneyCollectionDualAggregatorMappingsSeeder: skipped (need SELCOM + TEMBO and each MONEY_COLLECTION service). Run ServicesSeeder then TemboAggregatorSeeder.'
+            );
+
+            return;
+        }
+
+        $clientIds = ServiceMapping::query()
+            ->whereHas('service', fn ($q) => $q->where('code', 'MONEY_COLLECTION'))
+            ->distinct()
+            ->pluck('client_id');
+
+        foreach ($clientIds as $clientId) {
+            if (!Client::where('id', $clientId)->where('status', true)->exists()) {
+                continue;
+            }
+
             ServiceMapping::updateOrCreate(
                 [
-                    'client_id' => $client->id,
+                    'client_id' => $clientId,
                     'aggregator_id' => $selcom->id,
                     'service_id' => $selcomMoney->id,
                 ],
                 [
-                    'name' => 'Sample Payment Gateway — Selcom (primary)',
-                    'description' => 'Money collection via Selcom (preferred)',
+                    'name' => 'Money Collection (Selcom — primary)',
+                    'description' => 'Selcom push USSD / wallet collection; tried first for pay-by-link',
                     'request_mapping' => [
                         'customer_phone' => 'msisdn',
                         'reference' => 'utilityref',
@@ -74,25 +67,19 @@ class SampleClientSeeder extends Seeder
                     'transformation_rules' => [],
                     'status' => true,
                     'priority' => 0,
-                    'settings' => [
-                        'aggregator_code' => 'SELCOM',
-                        'commission_rate' => 2.5,
-                        'transaction_fee' => 50,
-                    ],
+                    'settings' => ['aggregator_code' => 'SELCOM'],
                 ]
             );
-        }
 
-        if ($tembo && $temboMoney) {
             ServiceMapping::updateOrCreate(
                 [
-                    'client_id' => $client->id,
+                    'client_id' => $clientId,
                     'aggregator_id' => $tembo->id,
                     'service_id' => $temboMoney->id,
                 ],
                 [
-                    'name' => 'Sample Payment Gateway — Tembo (backup)',
-                    'description' => 'Money collection via Tembo if Selcom fails',
+                    'name' => 'Money Collection (Tembo — backup)',
+                    'description' => 'Tembo collection; used if Selcom fails',
                     'request_mapping' => [
                         'customer_phone' => 'msisdn',
                         'mobile_network' => 'channel',
@@ -113,24 +100,11 @@ class SampleClientSeeder extends Seeder
                     ],
                     'status' => true,
                     'priority' => 1,
-                    'settings' => [
-                        'aggregator_code' => 'TEMBO',
-                        'commission_rate' => 2.5,
-                        'transaction_fee' => 50,
-                    ],
+                    'settings' => ['aggregator_code' => 'TEMBO'],
                 ]
             );
         }
 
-        if (!$selcomMoney && !$temboMoney) {
-            $this->command->error('❌ No MONEY_COLLECTION service found for SELCOM or TEMBO. Run ServicesSeeder and TemboAggregatorSeeder first.');
-
-            return;
-        }
-
-        $this->command->info("✅ Sample client 'Sample Payment Gateway' updated.");
-        $this->command->info("   - API Key: {$client->api_key}");
-        $this->command->info('   - Selcom mapping: ' . ($selcomMoney ? 'yes' : 'no'));
-        $this->command->info('   - Tembo mapping: ' . ($temboMoney ? 'yes' : 'no'));
+        $this->command->info('Dual SELCOM + TEMBO MONEY_COLLECTION mappings ensured for clients with existing collection mappings.');
     }
 }

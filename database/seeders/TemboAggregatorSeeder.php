@@ -16,31 +16,39 @@ class TemboAggregatorSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create or get Tembo Aggregator
-        $tembo = Aggregator::firstOrCreate(
+        // Tembo credentials: set TEMBO_* in .env, then run this seeder (or config:clear).
+        $temboAttrs = [
+            'name' => 'Tembo Plus',
+            'description' => 'Tembo Plus Mobile Money Collection Service for Tanzania',
+            'api_endpoint' => config('services.tembo.api_base_url'),
+            'status' => true,
+            'rate_limit' => 1000,
+            'timeout' => 30,
+            'retry_attempts' => 3,
+            'contact_person' => 'Tembo Support',
+            'contact_email' => 'support@temboplus.com',
+            'settings' => [
+                'headers' => [
+                    'content-type' => 'application/json',
+                ],
+                'supported_channels' => [
+                    'TZ-TIGO-C2B',
+                    'TZ-AIRTEL-C2B',
+                    'TZ-VODACOM-C2B',
+                    'TZ-MPESA-C2B',
+                ],
+            ],
+        ];
+        if (filled(config('services.tembo.account_id'))) {
+            $temboAttrs['api_key'] = config('services.tembo.account_id');
+        }
+        if (filled(config('services.tembo.secret_key'))) {
+            $temboAttrs['api_secret'] = config('services.tembo.secret_key');
+        }
+
+        $tembo = Aggregator::updateOrCreate(
             ['code' => 'TEMBO'],
-            [
-                'name' => 'Tembo Plus',
-                'description' => 'Tembo Plus Mobile Money Collection Service for Tanzania',
-                'api_endpoint' => 'https://sandbox.temboplus.com/tembo/v1',
-                'api_key' => 'bf71ba501b37d989db6224fd',
-                'api_secret' => 'vd//lqSw67Nl08e7Y2YzWcs2EL+rAIImpl4U4uNHdQg=',
-                'status' => true,
-                'rate_limit' => 1000,
-                'timeout' => 30,
-                'retry_attempts' => 3,
-                'contact_person' => 'Tembo Support',
-                'contact_email' => 'support@temboplus.com',
-                'settings' => [
-                    'headers' => [
-                        'content-type' => 'application/json'
-                    ],
-                    'supported_channels' => [
-                        'TZ-TIGO-C2B',
-                        'TZ-AIRTEL-C2B'
-                    ]
-                ]
-            ]
+            $temboAttrs
         );
 
         // Create or update Money Collection Service

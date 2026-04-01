@@ -43,4 +43,10 @@ return [
         'url' => env('PAYMENT_LINK_API_URL', 'https://zimapay.co.tz/api/payment-links/generate-universal'),
     ],
 
+    'tembo' => [
+        'api_base_url' => rtrim(env('TEMBO_API_BASE_URL', 'https://api.temboplus.com/tembo/v1'), '/'),
+        'account_id' => env('TEMBO_ACCOUNT_ID'),
+        'secret_key' => env('TEMBO_SECRET_KEY'),
+    ],
+
 ];

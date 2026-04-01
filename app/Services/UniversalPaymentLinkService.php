@@ -4,8 +4,11 @@ namespace App\Services;
 
 use App\Models\PaymentLink;
 use App\Models\PaymentLinkItem;
+use App\Models\Aggregator;
 use App\Models\Client;
+use App\Models\Service;
 use App\Models\ServiceMapping;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -33,11 +36,8 @@ class UniversalPaymentLinkService
                 ];
             }
 
-            // Get service mapping for money collection
-            $serviceMapping = ServiceMapping::where('client_id', $client->id)
-                ->whereHas('service', function($q) {
-                    $q->where('code', 'MONEY_COLLECTION');
-                })->first();
+            // Prefer SELCOM, then TEMBO, then any other active MONEY_COLLECTION mapping
+            $serviceMapping = $this->resolvePrimaryMoneyCollectionMapping($client);
 
             if (!$serviceMapping) {
                 return [
@@ -194,6 +194,7 @@ class UniversalPaymentLinkService
     {
         DB::beginTransaction();
         
+        
         try {
             // Log payment processing start
             Log::info('Universal payment processing started', [
@@ -229,6 +230,7 @@ class UniversalPaymentLinkService
             }
 
             // For public links, validate and collect customer information
+
             $isPublic = $paymentLink->metadata['is_public_link'] ?? false;
             
             if ($isPublic) {
@@ -266,6 +268,7 @@ class UniversalPaymentLinkService
                 ]);
             }
 
+
             // Validate payment items
             $itemPayments = $paymentData['items'] ?? [];
             $totalPaymentAmount = 0;
@@ -281,6 +284,7 @@ class UniversalPaymentLinkService
                     ->where('payment_link_id', $paymentLink->id)
                     ->first();
 
+
                 if (!$item) {
                     Log::error('Invalid item code in payment', [
                         'link_id' => $paymentLink->link_id,
@@ -288,14 +292,18 @@ class UniversalPaymentLinkService
                         'available_items' => $paymentLink->items->pluck('item_code')->toArray()
                     ]);
                     
+
                     return [
                         'success' => false,
                         'error' => 'Invalid item code: ' . $itemPayment['item_code']
                     ];
                 }
 
+
                 $amount = $itemPayment['amount'];
                 $totalPaymentAmount += $amount;
+
+
 
                 // Validate item payment
                 if (!$item->canPayPartially($amount)) {
@@ -308,6 +316,7 @@ class UniversalPaymentLinkService
                         'allow_partial' => $item->allow_partial,
                         'minimum_amount' => $item->minimum_amount
                     ]);
+
                     
                     return [
                         'success' => false,
@@ -315,10 +324,12 @@ class UniversalPaymentLinkService
                     ];
                 }
 
+
                 $processedItems[] = [
                     'item' => $item,
                     'amount' => $amount
                 ];
+
                 
                 Log::info('Item payment validated', [
                     'link_id' => $paymentLink->link_id,
@@ -328,23 +339,34 @@ class UniversalPaymentLinkService
                 ]);
             }
 
-            // Create transaction data with unique reference
-            $uniqueReference = $paymentLink->client_reference . '_' . time() . '_' . Str::random(6);
-            
-            // Callback URL for aggregator (Tembo-style). Selcom uses C2B notification endpoint instead.
-            $aggregatorCode = $paymentLink->serviceMapping?->aggregator?->code ?? 'SELCOM';
-            $callbackUrl = $aggregatorCode === 'SELCOM'
-                ? url('/api/selcom/c2b/notification')
-                : url('/api/callback/' . $aggregatorCode);
-            
+            $mappings = $this->orderedMoneyCollectionMappingsForClient($paymentLink->client_id);
+            if ($mappings->isEmpty()) {
+                return [
+                    'success' => false,
+                    'error' => 'Money collection service not available for this client'
+                ];
+            }
+
+            $firstMapping = $mappings->first();
+            if ($firstMapping && strtoupper((string) ($firstMapping->aggregator->code ?? '')) !== 'SELCOM') {
+                Log::warning('Pay-by-link: no active SELCOM MONEY_COLLECTION mapping for this client; using first available aggregator. Run EnsureMoneyCollectionDualAggregatorMappingsSeeder or add a SELCOM mapping.', [
+                    'client_id' => $paymentLink->client_id,
+                    'first_aggregator_code' => $firstMapping->aggregator->code ?? null,
+                    'mapping_order' => $mappings->map(fn ($m) => [
+                        'id' => $m->id,
+                        'code' => $m->aggregator->code ?? null,
+                    ])->all(),
+                ]);
+            }
+
             $transactionData = [
                 'customer_phone' => $paymentData['customer_phone'],
                 'mobile_network' => $paymentData['mobile_network'],
                 'amount' => $totalPaymentAmount,
                 'description' => $paymentLink->description,
-                'reference' => $uniqueReference,
+                'reference' => '',
                 'date' => now()->format('Y-m-d H:i:s'),
-                'webhook_url' => $callbackUrl, // Use our callback URL instead of client webhook
+                'webhook_url' => '',
                 'metadata' => array_merge($paymentLink->metadata ?? [], [
                     'payment_link_id' => $paymentLink->link_id,
                     'payment_link_short_code' => $paymentLink->short_code,
@@ -353,62 +375,108 @@ class UniversalPaymentLinkService
                     'customer_reference' => $paymentLink->metadata['customer_reference'] ?? null,
                     'target_type' => $paymentLink->metadata['target_type'] ?? 'individual',
                     'is_public_link' => $isPublic,
-                    'itemized_payments' => collect($processedItems)->map(function($item) {
+                    'itemized_payments' => collect($processedItems)->map(function ($item) {
                         return [
                             'item_code' => $item['item']->item_code,
                             'type' => $item['item']->category,
                             'product_service_reference' => $item['item']->metadata['product_service_reference'] ?? null,
                             'product_service_name' => $item['item']->item_name,
-                            'amount' => $item['amount']
+                            'amount' => $item['amount'],
                         ];
-                    })
+                    })->values()->all()
                 ])
             ];
 
-            Log::info('Transaction data prepared', [
-                'link_id' => $paymentLink->link_id,
-                'transaction_reference' => $transactionData['reference'],
-                'total_amount' => $totalPaymentAmount,
-                'mobile_network' => $transactionData['mobile_network'],
-                'items_count' => count($processedItems),
-                'aggregator_callback_url' => $transactionData['webhook_url'],
-                'client_webhook_url' => $paymentLink->webhook_url,
-                'note' => 'Aggregator callback URL; Selcom uses C2B notification; client webhook for client notification'
-            ]);
-
-            // Process through ESB
             $esbService = new EsbService();
-            $transaction = $this->createTransaction($paymentLink, $transactionData);
-            $result = $esbService->processRequest(
-                $paymentLink->serviceMapping,
-                $transactionData,
-                $transaction
-            );
+            $result = null;
+            $transaction = null;
 
-            // Log ESB processing result
-            Log::info('ESB processing completed', [
-                'link_id' => $paymentLink->link_id,
-                'success' => $result['success'],
-                'status_code' => $result['status_code'],
-                'response_time' => $result['response_time'],
-                'aggregator_status' => $result['aggregator_response']['status_code'] ?? null,
-                'error' => $result['error'] ?? null
-            ]);
+            foreach ($mappings as $index => $mapping) {
+                $mapping->loadMissing(['aggregator', 'service']);
 
-            // If successful, record payments for items (C2B notification will skip if this ran)
-            if ($result['success']) {
+                $uniqueReference = $paymentLink->client_reference . '_' . time() . '_' . Str::random(6)
+                    . ($index > 0 ? '_fb' . $index : '');
+
+                $aggregatorCode = strtoupper($mapping->aggregator->code ?? '');
+                $callbackUrl = $aggregatorCode === 'SELCOM'
+                    ? url('/api/selcom/c2b/notification')
+                    : url('/api/callback/' . $mapping->aggregator->code);
+
+                $transactionData['reference'] = $uniqueReference;
+                $transactionData['webhook_url'] = $callbackUrl;
+                $transactionData['date'] = now()->format('Y-m-d H:i:s');
+
+                Log::info('Transaction data prepared (aggregator attempt)', [
+                    'link_id' => $paymentLink->link_id,
+                    'attempt_index' => $index,
+                    'aggregator_code' => $mapping->aggregator->code ?? null,
+                    'service_mapping_id' => $mapping->id,
+                    'transaction_reference' => $transactionData['reference'],
+                    'total_amount' => $totalPaymentAmount,
+                    'mobile_network' => $transactionData['mobile_network'],
+                    'items_count' => count($processedItems),
+                    'aggregator_callback_url' => $transactionData['webhook_url'],
+                    'client_webhook_url' => $paymentLink->webhook_url,
+                ]);
+
+                $transaction = $this->createTransaction($paymentLink, $transactionData, $mapping);
+
+                $result = $esbService->processRequest($mapping, $transactionData, $transaction);
+
+                Log::info('ESB processing completed', [
+                    'link_id' => $paymentLink->link_id,
+                    'aggregator_code' => $mapping->aggregator->code ?? null,
+                    'service_mapping_id' => $mapping->id,
+                    'success' => $result['success'],
+                    'response_status' => $result['response']['status'] ?? null,
+                    'status_code' => $result['status_code'],
+                    'response_time' => $result['response_time'],
+                    'aggregator_status' => $result['aggregator_response']['status_code'] ?? null,
+                    'error' => $result['error'] ?? null
+                ]);
+
+                if (!$this->shouldFailOverToNextAggregator($result)) {
+                    break;
+                }
+
+                if ($transaction) {
+                    $transaction->update([
+                        'status' => 'failed',
+                        'error_message' => 'Primary aggregator failed; routed to backup',
+                        'aggregator_response' => array_merge(
+                            (array) ($transaction->aggregator_response ?? []),
+                            ['failover' => true]
+                        ),
+                    ]);
+                }
+
+                Log::warning('Money collection aggregator failed, trying next option', [
+                    'link_id' => $paymentLink->link_id,
+                    'failed_aggregator' => $mapping->aggregator->code ?? null,
+                    'attempt_index' => $index,
+                ]);
+            }
+
+            $businessStatus = strtolower((string) ($result['response']['status'] ?? ''));
+            $businessFailed = in_array($businessStatus, ['failed', 'error'], true);
+            $esbFailed = !($result['success'] ?? false);
+            $overallFailed = $esbFailed || $businessFailed;
+
+            // Only settle link/items when the aggregator accepted initiation successfully (not failed/error).
+            // ESB may still report success=true on HTTP 200 with statusCode PROVIDER_FAILED → business status failed.
+            if (($result['success'] ?? false) && !$businessFailed) {
                 foreach ($processedItems as $itemPayment) {
                     $itemPayment['item']->recordPayment($itemPayment['amount']);
-                    
+
                     Log::info('Item payment recorded', [
                         'link_id' => $paymentLink->link_id,
                         'item_code' => $itemPayment['item']->item_code,
                         'amount' => $itemPayment['amount']
                     ]);
                 }
-                
+
                 $paymentLink->incrementUses();
-                
+
                 $meta = $transaction->metadata ?? [];
                 $meta['payment_link_updated'] = true;
                 $transaction->update(['metadata' => $meta]);
@@ -419,15 +487,55 @@ class UniversalPaymentLinkService
                 ]);
             }
 
+            if ($overallFailed && $transaction) {
+                $transaction->update([
+                    'status' => 'failed',
+                    'aggregator_status' => 'failed',
+                    'error_message' => $businessFailed
+                        ? ($result['response']['message'] ?? 'Payment failed')
+                        : ($result['error'] ?? 'Service temporarily unavailable'),
+                    'final_response' => $result['response'] ?? [],
+                ]);
+            }
+
             DB::commit();
-            
+
+            if ($overallFailed) {
+                $errorMessage = $businessFailed
+                    ? ($result['response']['message'] ?? 'Payment could not be completed.')
+                    : ($result['error'] ?? $result['response']['message'] ?? 'Service temporarily unavailable');
+
+                Log::info('Universal payment processing completed', [
+                    'link_id' => $paymentLink->link_id,
+                    'success' => false,
+                    'business_status' => $businessStatus ?: null,
+                    'transaction_id' => $result['response']['transaction_id'] ?? null,
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => $errorMessage,
+                    'response' => $result['response'] ?? [],
+                    'status_code' => $result['status_code'] ?? 400,
+                    'response_time' => $result['response_time'] ?? null,
+                    'aggregator_response' => $result['aggregator_response'] ?? null,
+                ];
+            }
+
             Log::info('Universal payment processing completed', [
                 'link_id' => $paymentLink->link_id,
-                'success' => $result['success'],
+                'success' => true,
+                'business_status' => $businessStatus ?: null,
                 'transaction_id' => $result['response']['transaction_id'] ?? null
             ]);
 
-            return $result;
+            return array_merge($result, [
+                'data' => [
+                    'transaction_id' => $result['response']['transaction_id'] ?? null,
+                    'status' => $result['response']['status'] ?? null,
+                    'reference' => $result['response']['reference'] ?? null,
+                ],
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -573,17 +681,148 @@ class UniversalPaymentLinkService
     }
 
     /**
-     * Create transaction record for payment link
+     * Ensure SELCOM (primary) and TEMBO (backup) MONEY_COLLECTION mappings exist for this client
+     * when aggregators and services are present in the database (no manual seeder required).
      */
-    private function createTransaction(PaymentLink $paymentLink, array $transactionData)
+    private function ensureDualMoneyCollectionMappingsForClient(int $clientId): void
     {
+        if (!Client::where('id', $clientId)->where('status', true)->exists()) {
+            return;
+        }
+
+        $selcom = Aggregator::where('code', 'SELCOM')->first();
+        $tembo = Aggregator::where('code', 'TEMBO')->first();
+
+        $selcomMoney = $selcom
+            ? Service::where('code', 'MONEY_COLLECTION')->where('aggregator_id', $selcom->id)->first()
+            : null;
+        $temboMoney = $tembo
+            ? Service::where('code', 'MONEY_COLLECTION')->where('aggregator_id', $tembo->id)->first()
+            : null;
+
+        if ($selcom && $selcomMoney) {
+            ServiceMapping::updateOrCreate(
+                [
+                    'client_id' => $clientId,
+                    'aggregator_id' => $selcom->id,
+                    'service_id' => $selcomMoney->id,
+                ],
+                [
+                    'name' => 'Money Collection (Selcom — primary)',
+                    'description' => 'Selcom push USSD / wallet collection; tried first for pay-by-link',
+                    'request_mapping' => [
+                        'customer_phone' => 'msisdn',
+                        'reference' => 'utilityref',
+                        'amount' => 'amount',
+                    ],
+                    'response_mapping' => [
+                        'result' => 'status',
+                        'reference' => 'reference',
+                        'transid' => 'transaction_id',
+                        'resultcode' => 'result_code',
+                    ],
+                    'transformation_rules' => [],
+                    'status' => true,
+                    'priority' => 0,
+                    'settings' => ['aggregator_code' => 'SELCOM'],
+                ]
+            );
+        } else {
+            Log::notice('Cannot auto-create SELCOM pay-by-link mapping: missing SELCOM aggregator or MONEY_COLLECTION service.', [
+                'client_id' => $clientId,
+            ]);
+        }
+
+        if ($tembo && $temboMoney) {
+            ServiceMapping::updateOrCreate(
+                [
+                    'client_id' => $clientId,
+                    'aggregator_id' => $tembo->id,
+                    'service_id' => $temboMoney->id,
+                ],
+                [
+                    'name' => 'Money Collection (Tembo — backup)',
+                    'description' => 'Tembo collection; used if Selcom fails',
+                    'request_mapping' => [
+                        'customer_phone' => 'msisdn',
+                        'mobile_network' => 'channel',
+                        'amount' => 'amount',
+                        'description' => 'narration',
+                        'reference' => 'transactionRef',
+                        'date' => 'transactionDate',
+                        'webhook_url' => 'callbackUrl',
+                    ],
+                    'response_mapping' => [
+                        'statusCode' => 'status',
+                        'transactionRef' => 'reference',
+                        'transactionId' => 'transaction_id',
+                    ],
+                    'transformation_rules' => [
+                        ['type' => 'format_date', 'field' => 'transactionDate', 'format' => 'Y-m-d H:i:s'],
+                        ['type' => 'uppercase', 'field' => 'mobile_network'],
+                    ],
+                    'status' => true,
+                    'priority' => 1,
+                    'settings' => ['aggregator_code' => 'TEMBO'],
+                ]
+            );
+        }
+    }
+
+    /**
+     * Active MONEY_COLLECTION mappings for client: SELCOM first, TEMBO second, then others.
+     */
+    private function orderedMoneyCollectionMappingsForClient(int $clientId): Collection
+    {
+        $this->ensureDualMoneyCollectionMappingsForClient($clientId);
+
+        return ServiceMapping::query()
+            ->where('service_mappings.client_id', $clientId)
+            ->where('service_mappings.status', true)
+            ->whereHas('service', function ($q) {
+                $q->where('code', 'MONEY_COLLECTION');
+            })
+            ->join('aggregators', 'aggregators.id', '=', 'service_mappings.aggregator_id')
+            ->orderByRaw("CASE UPPER(TRIM(aggregators.code)) WHEN 'SELCOM' THEN 0 WHEN 'TEMBO' THEN 1 ELSE 2 END")
+            ->orderBy('service_mappings.priority')
+            ->select('service_mappings.*')
+            ->with(['service', 'aggregator'])
+            ->get();
+    }
+
+    private function resolvePrimaryMoneyCollectionMapping(Client $client): ?ServiceMapping
+    {
+        return $this->orderedMoneyCollectionMappingsForClient($client->id)->first();
+    }
+
+    /**
+     * When true, try the next aggregator (e.g. TEMBO after SELCOM). Do not failover on pending.
+     */
+    private function shouldFailOverToNextAggregator(array $result): bool
+    {
+        if (!$result['success']) {
+            return true;
+        }
+
+        $status = $result['response']['status'] ?? null;
+        if (is_string($status) && in_array(strtolower($status), ['failed', 'error'], true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function createTransaction(PaymentLink $paymentLink, array $transactionData, ?ServiceMapping $mapping = null)
+    {
+        $mapping = $mapping ?? $paymentLink->serviceMapping;
+
         return \App\Models\Transaction::create([
             'transaction_id' => 'TXN_' . Str::random(16),
             'client_reference' => $transactionData['reference'],
             'client_id' => $paymentLink->client_id,
-            'aggregator_id' => $paymentLink->serviceMapping->aggregator_id,
-            'service_id' => $paymentLink->serviceMapping->service_id,
-            'service_mapping_id' => $paymentLink->service_mapping_id,
+            'aggregator_id' => $mapping->aggregator_id,
+            'service_id' => $mapping->service_id,
+            'service_mapping_id' => $mapping->id,
             'amount' => $transactionData['amount'],
             'currency' => $paymentLink->currency,
             'customer_phone' => $transactionData['customer_phone'],

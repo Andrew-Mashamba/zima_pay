@@ -259,12 +259,14 @@ class PaymentPage extends Component
             // Validate form
             $this->validatePaymentData();
             
+          
             if (!empty($this->validationErrors)) {
                 $this->showError = true;
                 $this->errorMessage = 'Please correct the errors below.';
                 $this->isProcessing = false;
                 return;
             }
+
 
             $this->processingMessage = 'Preparing payment request...';
 
@@ -288,11 +290,17 @@ class PaymentPage extends Component
             $this->processingMessage = 'Processing payment...';
 
             // Process payment
+
+
+
             $universalPaymentService = app(UniversalPaymentLinkService::class);
+
             $result = $universalPaymentService->processUniversalPayment($this->paymentLink, $paymentData);
 
             if ($result['success']) {
-                $this->transactionId = $result['data']['transaction_id'] ?? '';
+                $this->transactionId = $result['data']['transaction_id']
+                    ?? $result['response']['transaction_id']
+                    ?? '';
                 
                 // Start waiting for callback instead of showing immediate success
                 $this->startWaitingForCallback();
@@ -447,9 +455,11 @@ class PaymentPage extends Component
         if (strpos($error, 'TRANSACTION_FAILED') !== false) {
             return 'Transaction failed. Please try again or contact support if the problem persists.';
         }
-        
-        // Default user-friendly message
-        return 'Payment processing failed. Please try again or contact support if the problem persists.';
+
+        // Show aggregator/backend detail (e.g. Tembo statusCode + IDs) instead of hiding it
+        return $error !== '' && $error !== null
+            ? $error
+            : 'Payment processing failed. Please try again or contact support if the problem persists.';
     }
 
     /**

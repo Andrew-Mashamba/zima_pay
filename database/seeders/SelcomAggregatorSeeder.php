@@ -55,7 +55,7 @@ class SelcomAggregatorSeeder extends Seeder
             [
                 'name' => 'Wallet Pull Funds (Push USSD)',
                 'description' => 'Trigger USSD push to customer wallet for payment collection',
-                'endpoint' => '/v1/wallet/pushussd',
+                'endpoint' => '/wallet/pushussd',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -77,7 +77,7 @@ class SelcomAggregatorSeeder extends Seeder
             [
                 'name' => 'Float Account Balance',
                 'description' => 'Get float account balance',
-                'endpoint' => '/v1/vendor/balance',
+                'endpoint' => '/vendor/balance',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -99,7 +99,7 @@ class SelcomAggregatorSeeder extends Seeder
             [
                 'name' => 'C2B Transaction Status',
                 'description' => 'Query C2B transaction status',
-                'endpoint' => '/v1/c2b/query-status',
+                'endpoint' => '/c2b/query-status',
                 'method' => 'GET',
                 'request_format' => 'json',
                 'response_format' => 'json',

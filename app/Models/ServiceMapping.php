@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\Log;
 
 class ServiceMapping extends Model
 {
@@ -227,6 +228,42 @@ class ServiceMapping extends Model
     }
 
     /**
+     * Compact diagnostic line for Laravel logs (not shown to payers).
+     */
+    private function formatTemboFailureDetailForLog(array $r): string
+    {
+        if (isset($r['message']) && is_string($r['message']) && trim($r['message']) !== '') {
+            return trim($r['message']);
+        }
+
+        $reason = $r['reason'] ?? '';
+        $details = $r['details'] ?? null;
+        if (is_string($reason) && $reason !== '') {
+            $suffix = '';
+            if ($details !== null && $details !== [] && $details !== '') {
+                $suffix = ' — ' . (is_array($details) ? json_encode($details) : (string) $details);
+            }
+
+            return $reason . $suffix;
+        }
+
+        if ($details !== null && $details !== [] && $details !== '') {
+            return is_array($details) ? json_encode($details) : (string) $details;
+        }
+
+        $sc = $r['statusCode'] ?? $r['status'] ?? 'UNKNOWN';
+        $line = 'Tembo: ' . (is_scalar($sc) ? (string) $sc : json_encode($sc));
+        if (!empty($r['transactionId'])) {
+            $line .= ' | Transaction ID: ' . $r['transactionId'];
+        }
+        if (!empty($r['transactionRef'])) {
+            $line .= ' | Reference: ' . $r['transactionRef'];
+        }
+
+        return $line;
+    }
+
+    /**
      * Transform aggregator response to client format
      */
     public function transformResponse($aggregatorResponse)
@@ -266,18 +303,47 @@ class ServiceMapping extends Model
             }
         }
 
-        // User-friendly message when Tembo reports failure (e.g. PROVIDER_FAILED = customer/mobile network did not complete)
         $statusCode = $aggregatorResponse['statusCode'] ?? null;
         $message = $aggregatorResponse['message'] ?? null;
-        if ($message === null && $status === 'failed' && is_string($statusCode)) {
+
+        if ($message === null && $status === 'failed' && $isTembo) {
+            $httpCode = is_numeric($statusCode) ? (int) $statusCode : (is_numeric($resultCode) ? (int) $resultCode : 0);
+            $reason = $aggregatorResponse['reason'] ?? '';
+            if ($httpCode === 409 || $reason === 'DUPLICATE_REQUEST') {
+                $message = 'Duplicate payment request. Please wait a moment or try again.';
+            } elseif ($httpCode === 400 && $reason === 'VALIDATION_ERROR') {
+                $message = 'Payment validation failed: ' . json_encode($aggregatorResponse['details'] ?? []);
+            } elseif ($httpCode >= 400 && is_numeric($statusCode)) {
+                $message = 'Payment could not be processed. Please try again or contact support.';
+            }
+        }
+
+        if ($message === null && $status === 'failed' && $isTembo && is_string($statusCode)) {
             $message = match (strtoupper($statusCode)) {
                 'PROVIDER_FAILED' => 'Payment was not completed by the mobile network or customer (e.g. cancelled, timeout, or insufficient balance).',
                 'REJECTED', 'CANCELLED' => 'Payment was cancelled or rejected.',
                 'FAILED', 'ERROR' => 'Payment could not be completed.',
-                default => 'Transaction processed successfully',
+                default => 'Payment could not be completed.',
             };
         }
-        $message = $message ?? 'Transaction processed successfully';
+
+        if ($message === null && $status === 'failed' && !$isTembo && is_string($statusCode)) {
+            $message = match (strtoupper($statusCode)) {
+                'PROVIDER_FAILED' => 'Payment was not completed by the mobile network or customer (e.g. cancelled, timeout, or insufficient balance).',
+                'REJECTED', 'CANCELLED' => 'Payment was cancelled or rejected.',
+                'FAILED', 'ERROR' => 'Payment could not be completed.',
+                default => null,
+            };
+        }
+
+        $message = $message ?? ($status === 'failed' ? 'Payment could not be completed.' : 'Transaction processed successfully');
+
+        if ($status === 'failed' && $isTembo) {
+            Log::warning('Tembo payment failure', [
+                'summary' => $this->formatTemboFailureDetailForLog($aggregatorResponse),
+                'aggregator_response' => $aggregatorResponse,
+            ]);
+        }
 
         // Enhanced response with comprehensive transaction details
         $transformed = array_merge($transformed, [

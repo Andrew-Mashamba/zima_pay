@@ -20,7 +20,7 @@ class ServicesSeeder extends Seeder
                 'code' => 'MONEY_COLLECTION',
                 'description' => 'Trigger USSD push to customer wallet for payment collection',
                 'aggregator_id' => 1,
-                'endpoint' => '/v1/wallet/pushussd',
+                'endpoint' => '/wallet/pushussd',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -43,7 +43,7 @@ class ServicesSeeder extends Seeder
                 'code' => 'COLLECTION_BALANCE',
                 'description' => 'Get float account balance',
                 'aggregator_id' => 1,
-                'endpoint' => '/v1/vendor/balance',
+                'endpoint' => '/vendor/balance',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -65,7 +65,7 @@ class ServicesSeeder extends Seeder
                 'code' => 'COLLECTION_STATEMENT',
                 'description' => 'Not supported by Selcom - kept for compatibility',
                 'aggregator_id' => 1,
-                'endpoint' => '/v1/wallet/collection-statement',
+                'endpoint' => '/wallet/collection-statement',
                 'method' => 'POST',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -84,7 +84,7 @@ class ServicesSeeder extends Seeder
                 'code' => 'PAYMENT_STATUS',
                 'description' => 'Query C2B transaction status',
                 'aggregator_id' => 1,
-                'endpoint' => '/v1/c2b/query-status',
+                'endpoint' => '/c2b/query-status',
                 'method' => 'GET',
                 'request_format' => 'json',
                 'response_format' => 'json',
@@ -103,9 +103,12 @@ class ServicesSeeder extends Seeder
             ],
         ];
 
-        // Insert new data
         foreach ($services as $service) {
-            DB::table('services')->insert($service);
+            $row = array_merge($service, ['updated_at' => now()]);
+            DB::table('services')->updateOrInsert(
+                ['id' => $service['id']],
+                $row
+            );
         }
 
         if (DB::getDriverName() === 'pgsql') {

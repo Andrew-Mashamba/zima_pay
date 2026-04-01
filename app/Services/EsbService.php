@@ -55,6 +55,19 @@ class EsbService
             
             // 3. Send request to aggregator with retry logic
             $aggregatorResponse = $this->sendToAggregator($aggregatorRequest, $serviceMapping);
+
+            if (empty($aggregatorResponse['success'])) {
+                $detail = '';
+                if (!empty($aggregatorResponse['data']) && is_array($aggregatorResponse['data'])) {
+                    $detail = json_encode($aggregatorResponse['data']);
+                } elseif (!empty($aggregatorResponse['error'])) {
+                    $detail = (string) $aggregatorResponse['error'];
+                }
+                $http = $aggregatorResponse['status_code'] ?? '';
+                throw new \Exception(
+                    trim('Aggregator request failed (HTTP ' . $http . '): ' . $detail)
+                );
+            }
             
             // Log the aggregator response
             Log::info('ESB Aggregator response received', [
@@ -160,7 +173,7 @@ class EsbService
         );
 
         $request = [
-            'url' => $aggregator->api_endpoint . $service->endpoint,
+            'url' => $this->buildAggregatorUrl((string) $aggregator->api_endpoint, (string) $service->endpoint),
             'method' => $service->method,
             'headers' => [
                 'Content-Type' => 'application/json',
@@ -215,6 +228,20 @@ class EsbService
         }
 
         return $request;
+    }
+
+    /**
+     * Join base URL and path without duplicating a /v1 segment (e.g. base .../v1 + path /v1/wallet/...).
+     */
+    protected function buildAggregatorUrl(string $baseUrl, string $endpoint): string
+    {
+        $base = rtrim($baseUrl, '/');
+        $path = '/' . ltrim($endpoint, '/');
+        if (preg_match('#/v1$#i', $base) && str_starts_with(strtolower($path), '/v1/')) {
+            $path = substr($path, 3);
+        }
+
+        return $base . $path;
     }
 
     /**
