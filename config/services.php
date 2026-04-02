@@ -53,4 +53,14 @@ return [
         'vendor_id' => env('SELCOM_VENDOR_ID', 'SW00175715'),
     ],
 
+    /*
+    | Log full outbound URL, headers, and body for ESB → aggregator HTTP calls, and full response
+    | headers + raw body. Includes Selcom Authorization/Digest and Tembo secrets — use only in
+    | trusted environments. Set AGGREGATOR_LOG_FULL=true to force; when unset, follows APP_DEBUG.
+    */
+    'aggregator_log_full_payloads' => filter_var(
+        env('AGGREGATOR_LOG_FULL', env('APP_DEBUG', false)),
+        FILTER_VALIDATE_BOOLEAN
+    ),
+
 ];

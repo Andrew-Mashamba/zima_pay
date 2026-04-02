@@ -357,16 +357,24 @@ class EsbService
             }
             
             try {
-                // Log attempt details
-                Log::info('Aggregator request attempt', [
+                $fullLog = $this->shouldLogFullAggregatorPayloads();
+
+                // Log attempt details (full headers/body when enabled — see config services.aggregator_log_full_payloads)
+                Log::info('Aggregator request attempt', array_merge([
                     'attempt' => $attempt + 1,
                     'max_retries' => $maxRetries,
                     'url' => $request['url'],
                     'method' => $request['method'],
                     'timeout' => $request['timeout'],
-                    'headers' => $this->sanitizeHeaders($request['headers']),
-                    'data' => $this->sanitizeLogData($request['data'] ?? null)
-                ]);
+                    'log_mode' => $fullLog ? 'full' : 'sanitized',
+                ], $fullLog ? [
+                    'headers' => $this->flattenHeadersForLog($request['headers'] ?? []),
+                    'query_params' => $request['params'] ?? null,
+                    'json_body' => $request['data'] ?? null,
+                ] : [
+                    'headers' => $this->sanitizeHeaders($request['headers'] ?? []),
+                    'data' => $this->sanitizeLogData($request['data'] ?? $request['params'] ?? null),
+                ]));
                 
                 $response = Http::timeout($request['timeout'])
                                ->withHeaders($request['headers']);
@@ -378,17 +386,23 @@ class EsbService
                 }
                 
                 $attemptTime = microtime(true) - $attemptStartTime;
-                
-                // Log response details
-                Log::info('Aggregator response received', [
+
+                // Log response details (full headers + raw body when enabled)
+                Log::info('Aggregator response received', array_merge([
                     'attempt' => $attempt + 1,
                     'url' => $request['url'],
                     'status_code' => $response->status(),
                     'response_time' => $attemptTime,
+                    'successful' => $response->successful(),
+                    'log_mode' => $fullLog ? 'full' : 'sanitized',
+                ], $fullLog ? [
+                    'response_headers' => $this->flattenHeadersForLog($response->headers()),
+                    'response_body_raw' => $response->body(),
+                    'response_body_json' => $response->json(),
+                ] : [
                     'response_headers' => $this->sanitizeHeaders($response->headers()),
                     'response_body' => $this->sanitizeLogData($response->json()),
-                    'successful' => $response->successful()
-                ]);
+                ]));
                 
                 if ($response->successful()) {
                     return [
@@ -404,14 +418,20 @@ class EsbService
                 $bodyArr = is_array($responseBody) ? $responseBody : [];
 
                 // Log unsuccessful response details
-                Log::warning('Aggregator returned unsuccessful response', [
+                Log::warning('Aggregator returned unsuccessful response', array_merge([
                     'attempt' => $attempt + 1,
                     'url' => $request['url'],
                     'status_code' => $response->status(),
                     'response_time' => $attemptTime,
-                    'response_body' => $this->sanitizeLogData($bodyArr),
+                    'log_mode' => $fullLog ? 'full' : 'sanitized',
                     'error_message' => $response->body(),
-                ]);
+                ], $fullLog ? [
+                    'response_headers' => $this->flattenHeadersForLog($response->headers()),
+                    'response_body_raw' => $response->body(),
+                    'response_body_json' => $bodyArr,
+                ] : [
+                    'response_body' => $this->sanitizeLogData($bodyArr),
+                ]));
 
                 // Selcom HTTP 403: retries do not help (IP whitelist, invalid digest/credentials, disabled product).
                 // Body usually matches their standard: resultcode, result, message (see Selcom API docs).
@@ -699,6 +719,31 @@ class EsbService
         ];
         
         return $providers[$mobileNetwork] ?? 'Unknown';
+    }
+
+    protected function shouldLogFullAggregatorPayloads(): bool
+    {
+        return (bool) config('services.aggregator_log_full_payloads', false);
+    }
+
+    /**
+     * Normalize header arrays (single or multi-value) for structured logs.
+     *
+     * @param  array<string, mixed>  $headers
+     * @return array<string, string>
+     */
+    protected function flattenHeadersForLog(array $headers): array
+    {
+        $flat = [];
+        foreach ($headers as $name => $values) {
+            if (is_array($values)) {
+                $flat[$name] = count($values) === 1 ? (string) ($values[0] ?? '') : implode(', ', $values);
+            } else {
+                $flat[$name] = (string) $values;
+            }
+        }
+
+        return $flat;
     }
 
     /**
