@@ -31,7 +31,7 @@ class AggregatorsSeeder extends Seeder
                 'contact_email' => 'support@selcom.net',
                 'contact_phone' => null,
                 'settings' => json_encode([
-                    'vendor' => env('SELCOM_VENDOR_ID', '01234567891'),
+                    'vendor' => env('SELCOM_VENDOR_ID', 'SW00175715'),
                     'auth_type' => 'selcom_digest',
                     'supported_wallets' => ['AIRTELMONEY', 'MPESA-TZ', 'TIGOPESATZ', 'HALOPESATZ', 'TTCLMOBILE', 'ZANTELEZPESA'],
                     'c2b_bearer_token' => env('SELCOM_C2B_BEARER_TOKEN', ''),

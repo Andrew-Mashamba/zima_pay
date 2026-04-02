@@ -34,7 +34,7 @@ class SelcomAggregatorSeeder extends Seeder
                 'contact_person' => 'Selcom Support',
                 'contact_email' => 'support@selcom.net',
                 'settings' => [
-                    'vendor' => env('SELCOM_VENDOR_ID', '01234567891'),
+                    'vendor' => env('SELCOM_VENDOR_ID', 'SW00175715'),
                     'auth_type' => 'selcom_digest',
                     'supported_wallets' => [
                         'AIRTELMONEY',
@@ -140,7 +140,7 @@ class SelcomAggregatorSeeder extends Seeder
                 'status' => true,
                 'rate_limit' => 50,
                 'api_credentials' => json_encode([
-                    'vendor' => $selcom->settings['vendor'] ?? env('SELCOM_VENDOR_ID', '01234567891'),
+                    'vendor' => $selcom->settings['vendor'] ?? env('SELCOM_VENDOR_ID', 'SW00175715'),
                 ]),
             ],
         ]);

@@ -49,4 +49,8 @@ return [
         'secret_key' => env('TEMBO_SECRET_KEY'),
     ],
 
+    'selcom' => [
+        'vendor_id' => env('SELCOM_VENDOR_ID', 'SW00175715'),
+    ],
+
 ];

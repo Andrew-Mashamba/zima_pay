@@ -194,7 +194,7 @@ class EsbService
             }
         } elseif ($isSelcom) {
             $settings = is_array($aggregator->settings) ? $aggregator->settings : [];
-            $vendor = $settings['vendor'] ?? env('SELCOM_VENDOR_ID', '01234567891');
+            $vendor = $settings['vendor'] ?? config('services.selcom.vendor_id', 'SW00175715');
             $transformedData['vendor'] = $transformedData['vendor'] ?? $vendor;
             $transformedData['transid'] = $transformedData['transid'] ?? ('TXN-' . time() . '-' . Str::random(6));
             $request = $this->addSelcomAuth($request, $aggregator, $service, $transformedData);
