@@ -688,6 +688,7 @@ class UniversalPaymentLinkService
             'cancel_url' => 'nullable|url',
         ];
 
+        Log::info("validation rule passed");
         // Add conditional validation for individual targets
         if (($data['target'] ?? 'individual') === 'individual') {
             $rules['customer_name'] = 'required|string|max:255';
@@ -695,6 +696,10 @@ class UniversalPaymentLinkService
         }
 
         $validator = Validator::make($data, $rules);
+
+        Log::info("validation completed");
+         Log::info(json_encode($validator->errors()->toArray()));
+
 
         return [
             'valid' => !$validator->fails(),
