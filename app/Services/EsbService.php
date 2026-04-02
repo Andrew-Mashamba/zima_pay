@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ServiceMapping;
 use App\Models\Transaction;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -246,13 +247,13 @@ class EsbService
 
     /**
      * Add Selcom Digest authentication (HMAC-SHA256)
-     * Digest = Base64(HMAC-SHA256(timestamp=...&field1=value1&..., api_secret))
+     * Per https://developers.selcommobile.com/?#introduction :
+     * Digest = Base64(HMAC-SHA256("timestamp={Ts}&k1=v1&k2=v2...", api_secret))
+     * Every key in Signed-Fields must appear in that string (empty value if absent), in the same order.
      */
     protected function addSelcomAuth(array $request, $aggregator, $service, array $data): array
     {
-        $timestamp = now()->format('Y-m-d\TH:i:sP');
-        $settings = is_array($aggregator->settings) ? $aggregator->settings : [];
-        $vendor = $settings['vendor'] ?? $aggregator->api_key;
+        $timestamp = Carbon::now('Africa/Dar_es_Salaam')->format('Y-m-d\TH:i:sP');
 
         $request['headers']['Authorization'] = 'SELCOM ' . base64_encode($aggregator->api_key);
         $request['headers']['Timestamp'] = $timestamp;
@@ -268,10 +269,10 @@ class EsbService
         $parts = ['timestamp=' . $timestamp];
         foreach (explode(',', $signedFields) as $field) {
             $field = trim($field);
-            $value = $data[$field] ?? null;
-            if ($value !== null) {
-                $parts[] = $field . '=' . $value;
+            if ($field === '') {
+                continue;
             }
+            $parts[] = $field . '=' . $this->selcomDigestScalar($data[$field] ?? null);
         }
         $signString = implode('&', $parts);
         $digest = base64_encode(hash_hmac('sha256', $signString, $aggregator->api_secret, true));
@@ -280,6 +281,31 @@ class EsbService
         $request['headers']['Signed-Fields'] = $signedFields;
 
         return $request;
+    }
+
+    /**
+     * Stringify a body field for Selcom digest signing (must match gateway expectations).
+     */
+    protected function selcomDigestScalar(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value) || is_float($value)) {
+            if (is_float($value) && is_finite($value) && floor($value) == $value) {
+                return (string) (int) $value;
+            }
+
+            return (string) $value;
+        }
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return '';
     }
     
     /**
