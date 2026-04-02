@@ -114,7 +114,15 @@ class UniversalPaymentLinkController extends Controller
             if (!$result['success']) {
                 Log::error('Payment link generation failed', [
                     'error' => $result['error'],
-                    'client_id' => $client->id
+                    'client_id' => $client->id,
+                    'service_validation_errors' => $result['errors'] ?? null,
+                    'request_payload_summary' => [
+                        'target' => $request->input('target'),
+                        'items_count' => is_array($request->input('items')) ? count($request->input('items')) : 0,
+                        'has_customer_name' => $request->filled('customer_name'),
+                        'has_customer_phone' => $request->filled('customer_phone'),
+                        'expires_at' => $request->input('expires_at'),
+                    ],
                 ]);
 
                 return response()->json([

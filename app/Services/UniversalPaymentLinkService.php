@@ -29,6 +29,21 @@ class UniversalPaymentLinkService
             // Validate input data
             $validation = $this->validateUniversalPaymentLinkData($data);
             if (!$validation['valid']) {
+                Log::warning('Universal payment link service validation failed', [
+                    'client_id' => $client->id,
+                    'stage' => 'service_validation',
+                    'errors' => $validation['errors'],
+                    'payload_summary' => [
+                        'target' => $data['target'] ?? null,
+                        'items_count' => isset($data['items']) && is_array($data['items']) ? count($data['items']) : 0,
+                        'has_description' => !empty($data['description']),
+                        'has_customer_name' => !empty($data['customer_name']),
+                        'has_customer_phone' => !empty($data['customer_phone']),
+                        'customer_phone_masked' => isset($data['customer_phone']) ? substr((string) $data['customer_phone'], 0, 6) . '****' : null,
+                        'expires_at' => $data['expires_at'] ?? null,
+                    ],
+                ]);
+
                 return [
                     'success' => false,
                     'error' => 'Validation failed',
@@ -177,7 +192,14 @@ class UniversalPaymentLinkService
             Log::error('Universal payment link generation failed', [
                 'error' => $e->getMessage(),
                 'client_id' => $client->id,
-                'data' => $data
+                'exception_class' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+                'payload_summary' => [
+                    'target' => $data['target'] ?? null,
+                    'items_count' => isset($data['items']) && is_array($data['items']) ? count($data['items']) : 0,
+                    'reference' => $data['reference'] ?? null,
+                    'customer_reference' => $data['customer_reference'] ?? null,
+                ],
             ]);
 
             return [
@@ -676,7 +698,7 @@ class UniversalPaymentLinkService
 
         return [
             'valid' => !$validator->fails(),
-            'errors' => $validator->errors()
+            'errors' => $validator->errors()->toArray()
         ];
     }
 
