@@ -400,33 +400,55 @@ class EsbService
                     ];
                 }
                 
+                $responseBody = $response->json();
+                $bodyArr = is_array($responseBody) ? $responseBody : [];
+
                 // Log unsuccessful response details
                 Log::warning('Aggregator returned unsuccessful response', [
                     'attempt' => $attempt + 1,
                     'url' => $request['url'],
                     'status_code' => $response->status(),
                     'response_time' => $attemptTime,
-                    'response_body' => $this->sanitizeLogData($response->json()),
-                    'error_message' => $response->body()
+                    'response_body' => $this->sanitizeLogData($bodyArr),
+                    'error_message' => $response->body(),
                 ]);
-                
+
+                // Selcom HTTP 403: retries do not help (IP whitelist, invalid digest/credentials, disabled product).
+                // Body usually matches their standard: resultcode, result, message (see Selcom API docs).
+                if ($response->status() === 403 && str_contains(strtolower((string) ($request['url'] ?? '')), 'selcom')) {
+                    $msg = $bodyArr['message'] ?? $response->body();
+                    Log::warning('Selcom HTTP 403 — full gateway message (check IP whitelist vs auth)', [
+                        'resultcode' => $bodyArr['resultcode'] ?? null,
+                        'result' => $bodyArr['result'] ?? null,
+                        'message' => $msg,
+                    ]);
+
+                    return [
+                        'success' => false,
+                        'data' => $bodyArr !== [] ? $bodyArr : ['raw' => $response->body()],
+                        'status_code' => 403,
+                        'headers' => $response->headers(),
+                        'response_time' => $attemptTime,
+                        'error' => 'Selcom HTTP 403: ' . (is_string($msg) ? $msg : json_encode($msg)),
+                    ];
+                }
+
                 // Check if this is a duplicate request error - don't retry these
-                $responseBody = $response->json();
-                if ($response->status() === 409 && 
-                    isset($responseBody['reason']) && 
-                    $responseBody['reason'] === 'DUPLICATE_REQUEST') {
+                if ($response->status() === 409 &&
+                    isset($bodyArr['reason']) &&
+                    $bodyArr['reason'] === 'DUPLICATE_REQUEST') {
                     
                     Log::warning('Duplicate request detected, stopping retries', [
                         'attempt' => $attempt + 1,
                         'status_code' => $response->status(),
-                        'reason' => $responseBody['reason'],
+                        'reason' => $bodyArr['reason'],
                         'reference' => $request['data']['reference'] ?? 'unknown'
                     ]);
                     
                     // Return the error immediately without retrying
                     return [
                         'success' => false,
-                        'data' => $responseBody,
+                        'data' => $bodyArr,
                         'status_code' => $response->status(),
                         'headers' => $response->headers(),
                         'response_time' => $attemptTime,
