@@ -333,8 +333,8 @@ class UniversalPaymentLinkController extends Controller
         $apiKey = $request->header('X-API-Key');
         $apiSecret = $request->header('X-API-Secret');
         
-        $envApiKey = env('PAYMENT_GATEWAY_API_KEY');
-        $envApiSecret = env('PAYMENT_GATEWAY_API_SECRET');
+        $envApiKey = config('services.payment_gateway.api_key');
+        $envApiSecret = config('services.payment_gateway.api_secret');
 
         Log::debug('Authenticating client', [
             'has_api_key' => isset($apiKey),
